@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#080d11" />
+    <title>Lineup Studio &middot; Football Tactics Board</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23b6ff3c'/%3E%3Cpath d='M16 6l7 5-2.6 8h-8.8L9 11z' fill='%230b1014'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <header class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14"/><path d="M16 6l7 5-2.6 8h-8.8L9 11z"/></svg>
+          </div>
+          <div class="brand-text">
+            <strong>Lineup Studio</strong>
+            <span>Drag &amp; drop tactics board</span>
+          </div>
+          <button class="icon-btn sidebar-close" id="sidebarClose" type="button" title="Hide panel" aria-label="Hide panel">
+            <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+        </header>
+
+        <div class="team-tabs" id="teamTabs" role="tablist" aria-label="Teams"></div>
+
+        <section class="panel team-panel">
+          <div class="panel-head">
+            <h3>Team</h3>
+          </div>
+          <label class="field">
+            <span class="field-label">Club name</span>
+            <input id="teamName" type="text" maxlength="28" placeholder="e.g. Riverside FC" autocomplete="off" />
+          </label>
+          <div class="field">
+            <span class="field-label">Kit colour</span>
+            <div class="swatches" id="swatches"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Formation <em class="hint-inline">GK + 5 outfield</em></span>
+            <div class="formation-row" id="formationRow"></div>
+          </div>
+        </section>
+
+        <section class="panel add-panel">
+          <div class="panel-head">
+            <h3>Add player</h3>
+          </div>
+          <form id="playerForm" autocomplete="off">
+            <div class="photo-row">
+              <button class="photo-picker" id="photoPicker" type="button" title="Add photo (optional)">
+                <img id="photoPreview" alt="" />
+                <svg class="photo-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 8h3l2-2h6l2 2h3v11H4z" />
+                  <circle cx="12" cy="13" r="3.2" />
+                </svg>
+              </button>
+              <input id="photoInput" type="file" accept="image/*" hidden />
+              <div class="photo-actions">
+                <button class="btn btn-ghost btn-sm" id="photoClear" type="button">Remove photo</button>
+                <span class="field-hint">Optional &middot; JPG or PNG</span>
+              </div>
+            </div>
+
+            <label class="field">
+              <span class="field-label">Player name</span>
+              <input id="playerName" type="text" maxlength="24" placeholder="e.g. M. Salah" required />
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Position</span>
+                <select id="playerPosition"></select>
+              </label>
+              <label class="field field-narrow">
+                <span class="field-label">Number</span>
+                <input id="playerNumber" type="number" min="1" max="99" placeholder="auto" />
+              </label>
+            </div>
+
+            <button class="btn btn-primary btn-block" type="submit">Add to squad</button>
+          </form>
+        </section>
+
+        <section class="panel squad-panel">
+          <div class="panel-head">
+            <h3>Squad <span class="badge" id="squadCount">0</span></h3>
+            <button class="btn btn-ghost btn-xs" id="squadClear" type="button">Clear all</button>
+          </div>
+          <ul class="squad-list" id="squadList"></ul>
+          <p class="empty-note" id="squadEmpty">No players yet. Add your squad above, then drag players onto the pitch.</p>
+        </section>
+
+        <footer class="sidebar-foot">
+          <span>6 a side &middot; 1 GK + 5 outfield</span>
+          <button class="btn btn-ghost btn-xs" id="resetAll" type="button">Reset app</button>
+        </footer>
+      </aside>
+
+      <main class="stage" id="stage">
+        <canvas id="scene"></canvas>
+        <div class="overlay" id="overlay" aria-live="polite"></div>
+
+        <div class="toolbar" id="toolbar">
+          <button class="icon-btn sidebar-open" id="sidebarOpen" type="button" title="Show panel" aria-label="Show panel">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="toolbar-group">
+            <button class="btn btn-sm" id="autoFill" type="button" title="Fill empty slots from the bench by position">
+              <svg viewBox="0 0 24 24" class="ico"><path d="M12 3l4 4h-3v6h-2V7H8z"/><path d="M5 19h14"/></svg>
+              Auto-fill
+            </button>
+            <button class="btn btn-sm" id="clearXI" type="button">
+              <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              Clear pitch
+            </button>
+          </div>
+          <div class="toolbar-group">
+            <button class="icon-btn" id="zoomOut" type="button" title="Zoom out" aria-label="Zoom out">
+              <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+            </button>
+            <button class="icon-btn" id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in">
+              <svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
+            </button>
+            <button class="icon-btn" id="resetView" type="button" title="Reset camera" aria-label="Reset camera">
+              <svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 107 7"/><path d="M12 2v4h4"/></svg>
+            </button>
+          </div>
+          <button class="btn btn-accent btn-sm" id="exportPNG" type="button">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v3h16v-3"/></svg>
+            Export PNG
+          </button>
+        </div>
+
+        <p class="stage-hint" id="stageHint">Drag a player onto the pitch &middot; drag onto the bench to substitute &middot; drag empty space to orbit</p>
+
+        <section class="bench" id="bench" data-drop="bench">
+          <div class="bench-head">
+            <span class="bench-title">
+              <svg viewBox="0 0 24 24" class="ico"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M3 19h18"/></svg>
+              Substitute bench
+            </span>
+            <span class="bench-sub" id="benchSub">Drag a player off the pitch to bench them</span>
+          </div>
+          <div class="bench-track" id="benchTrack"></div>
+          <p class="bench-empty" id="benchEmpty">Bench is empty &mdash; drop a player here to send them off the pitch</p>
+        </section>
+
+        <div class="toast" id="toast" role="status"></div>
+      </main>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
