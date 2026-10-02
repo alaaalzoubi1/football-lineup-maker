@@ -16,6 +16,20 @@
 - Lineup persists in `localStorage`, and on a shared board so everyone with the link sees the same XI
 - Shared board is view-only until a visitor enters the editor PIN
 - Export the lineup as a 1240×1660 poster PNG
+- English / Arabic switcher: the whole UI, the exported poster and the `<html dir>` all follow the chosen language
+
+## Language
+
+Arabic and English ship in `src/i18n.js` as two plain dictionaries.
+
+- Static text in `index.html` carries `data-i18n` (plus `-placeholder`, `-title`, `-aria-label`) and is rewritten by `applyDom()`.
+- Text built in JavaScript goes through `t('key')`; pass `{ name }` style vars to fill `{name}` placeholders.
+- Plural strings are stored with a plural suffix (`toast.need_one`, `toast.need_other`, and the Arabic `_two` / `_few` / `_many` forms). Pass `{ count }` and the right form is chosen with `Intl.PluralRules`, falling back to `_other`.
+- Position names come from `positionLabel(id)` (`pos.GK` → "Goalkeeper" / "حارس مرمى") and formation descriptions from `formationBlurb(id)`.
+- The choice is saved in `localStorage` under `lineup-studio-lang`; with nothing stored the browser's language list decides.
+- `isRtl()` drives the mirrored layout in `styles.css`. The document direction alone flips the flex row (a `row-reverse` override would undo it), so only the sidebar's border/shadow/transition and the toolbar corner are mirrored by hand.
+
+Adding a language means adding an entry to `LANGS` and a dictionary with the same keys.
 
 ## Run it locally
 
@@ -118,6 +132,7 @@ src/
   sidebar.js     squad list, tabs, add-player form
   cards.js       shared card markup
   exportPng.js   poster export
+  i18n.js        en/ar dictionaries, t(), language state, RTL helpers
   util.js        helpers and toasts
 worker/
   src/index.js   board API: read, save, PIN check, CORS, rate limiting

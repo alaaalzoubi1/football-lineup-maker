@@ -2,6 +2,7 @@ import { FORMATIONS, KIT_COLORS, POSITIONS } from './data.js';
 import { store } from './store.js';
 import { esc, initials, readImageAsDataURL, toast } from './util.js';
 import { pitchCardHTML } from './cards.js';
+import { formationBlurb, positionLabel, t } from './i18n.js';
 
 export function createSidebar({ onPlayerRemoved } = {}) {
   const el = {
@@ -25,12 +26,13 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     resetAll: document.getElementById('resetAll'),
     close: document.getElementById('sidebarClose'),
     open: document.getElementById('sidebarOpen'),
+    scrim: document.getElementById('sidebarScrim'),
   };
 
   let pendingPhoto = null;
   const cache = { tabs: '', swatches: '', formations: '', squad: '' };
 
-  el.position.innerHTML = POSITIONS.map((p) => `<option value="${esc(p.id)}">${esc(p.id)} &middot; ${esc(p.label)}</option>`).join('');
+  el.position.innerHTML = POSITIONS.map((p) => `<option value="${esc(p.id)}">${esc(p.id)} &middot; ${esc(positionLabel(p.id))}</option>`).join('');
   el.position.value = 'CM';
 
   function setPhotoPreview(src) {
@@ -74,7 +76,7 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     el.formationRow.innerHTML = Object.values(FORMATIONS)
       .map(
         (f) =>
-          `<button class="formation-btn" type="button" data-formation="${esc(f.id)}" aria-pressed="${f.id === current}" title="${esc(f.blurb)}">${esc(f.label)}</button>`,
+          `<button class="formation-btn" type="button" data-formation="${esc(f.id)}" aria-pressed="${f.id === current}" title="${esc(formationBlurb(f.id))}">${esc(f.label)}</button>`,
       )
       .join('');
   }
@@ -106,14 +108,14 @@ export function createSidebar({ onPlayerRemoved } = {}) {
         const avatar = player.photo
           ? `<img src="${esc(player.photo)}" alt="" draggable="false" />`
           : esc(initials(player.name));
-        return `<li class="squad-row${onPitch ? ' is-starter' : ''}" data-draggable="1" data-player-id="${esc(player.id)}" data-origin="squad" style="--team:${esc(team.color)}" title="Drag onto the pitch">
+        return `<li class="squad-row${onPitch ? ' is-starter' : ''}" data-draggable="1" data-player-id="${esc(player.id)}" data-origin="squad" style="--team:${esc(team.color)}" title="${esc(t('squad.dragHint'))}">
           <span class="squad-avatar">${avatar}<span class="sq-num">${esc(player.number)}</span></span>
           <span class="squad-info">
             <span class="squad-name">${esc(player.name)}</span>
-            <span class="squad-pos">${esc(player.position)}${slotId ? ` &middot; on pitch` : ''}</span>
+            <span class="squad-pos">${esc(player.position)}${slotId ? ` &middot; ${esc(t('squad.onPitch'))}` : ''}</span>
           </span>
-          <span class="squad-status${onPitch ? '' : ' bench'}">${onPitch ? 'XI' : 'Sub'}</span>
-          <button class="squad-del" type="button" data-delete="${esc(player.id)}" title="Remove ${esc(player.name)}" aria-label="Remove ${esc(player.name)}">
+          <span class="squad-status${onPitch ? '' : ' bench'}">${onPitch ? esc(t('squad.xi')) : esc(t('squad.sub'))}</span>
+          <button class="squad-del" type="button" data-delete="${esc(player.id)}" title="${esc(t('action.removePlayer', { name: player.name }))}" aria-label="${esc(t('action.removePlayer', { name: player.name }))}">
             <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"/></svg>
           </button>
           <div data-ghost-source>${pitchCardHTML({ ...player, slotId: slotId ?? 'bench' }, team)}</div>
@@ -148,7 +150,7 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     if (!btn) return;
     const { benched } = store.setFormation(btn.dataset.formation);
     if (benched > 0) {
-      toast(`${benched} player${benched === 1 ? '' : 's'} do not fit this shape and moved to the bench`);
+      toast(t('toast.need', { count: benched }));
     }
   });
 
@@ -163,7 +165,7 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     } catch {
       pendingPhoto = null;
       setPhotoPreview(null);
-      toast('Could not read that image', 'warn');
+      toast(t('toast.imageUnreadable'), 'warn');
     }
     el.photoInput.value = '';
   });
@@ -171,7 +173,7 @@ export function createSidebar({ onPlayerRemoved } = {}) {
   el.photoClear.addEventListener('click', () => {
     pendingPhoto = null;
     setPhotoPreview(null);
-    toast('Photo cleared');
+    toast(t('toast.photoCleared'));
   });
 
   el.form.addEventListener('submit', (event) => {
@@ -194,8 +196,8 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     pendingPhoto = null;
     setPhotoPreview(null);
     el.name.focus();
-    toast(`${player.name} added as #${player.number} (${player.position})`);
-    if (store.saveFailed) toast('Storage full - photos cannot be saved', 'warn');
+    toast(t('toast.playerAdded', { name: player.name, number: player.number, position: positionLabel(player.position) }));
+    if (store.saveFailed) toast(t('toast.storageFull'), 'warn');
   });
 
   el.squadList.addEventListener('click', (event) => {
@@ -203,29 +205,30 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     if (!btn) return;
     const player = store.playerById(btn.dataset.delete);
     store.removePlayer(btn.dataset.delete);
-    if (player) toast(`${player.name} removed`);
+    if (player) toast(t('toast.playerRemoved', { name: player.name }));
     onPlayerRemoved?.(btn.dataset.delete);
   });
 
   el.squadClear.addEventListener('click', () => {
     if (!store.activeTeam.players.length) return;
-    if (!window.confirm('Remove every player from this team?')) return;
+    if (!window.confirm(t('confirm.clearSquad'))) return;
     store.clearSquad();
-    toast('Squad cleared');
+    toast(t('toast.squadCleared'));
   });
 
   el.resetAll.addEventListener('click', () => {
-    if (!window.confirm('Reset everything and start from scratch?')) return;
+    if (!window.confirm(t('confirm.resetAll'))) return;
     store.reset();
     pendingPhoto = null;
     setPhotoPreview(null);
     el.name.value = '';
     el.number.value = '';
-    toast('Everything reset');
+    toast(t('toast.everythingReset'));
   });
 
   el.close.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
   el.open?.addEventListener('click', () => el.app.classList.remove('sidebar-hidden'));
+  el.scrim?.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
 
   render();
 

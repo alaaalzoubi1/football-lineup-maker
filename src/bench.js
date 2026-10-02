@@ -1,5 +1,7 @@
 import { store } from './store.js';
 import { benchCardHTML } from './cards.js';
+import { t } from './i18n.js';
+import { esc } from './util.js';
 
 export function createBench({ bench, track, subLabel }) {
   function render() {
@@ -8,10 +10,9 @@ export function createBench({ bench, track, subLabel }) {
     bench.classList.toggle('has-subs', subs.length > 0);
     track.innerHTML = subs.map((player) => benchCardHTML(player, team)).join('');
     if (subLabel) {
-      const count = subs.length;
-      subLabel.textContent = count
-        ? `${count} substitute${count === 1 ? '' : 's'} &middot; drag onto the pitch to field them`
-        : 'Drag a player off the pitch to bench them';
+      subLabel.innerHTML = subs.length
+        ? `${esc(t('bench.count', { count: subs.length }))} &middot; ${esc(t('bench.dragUp'))}`
+        : esc(t('bench.sub'));
     }
   }
 

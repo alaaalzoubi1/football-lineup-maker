@@ -1,6 +1,7 @@
 import { PITCH, POS_LABEL, getFormation } from './data.js';
 import { store } from './store.js';
 import { initials, loadImage } from './util.js';
+import { formationLabel, getLang, isRtl, positionLabel, t } from './i18n.js';
 
 const W = 1240;
 const H = 1660;
@@ -10,6 +11,23 @@ const PITCH_H = H - HEAD_H - SUBS_H - 60;
 const PITCH_W = PITCH_H / (PITCH.length / PITCH.width);
 const PITCH_X = (W - PITCH_W) / 2;
 const PITCH_Y = HEAD_H;
+
+/* The poster mirrors the UI language: Arabic is drawn right-to-left and the
+   header block swaps sides so nothing is clipped. */
+function alignOf(side) {
+  if (!isRtl()) return side === 'end' ? 'right' : 'left';
+  return side === 'end' ? 'left' : 'right';
+}
+
+function edgeOf(side) {
+  const base = side === 'end' ? W - 56 : 56;
+  return isRtl() ? (side === 'end' ? 56 : W - 56) : base;
+}
+
+function setAlign(ctx, side) {
+  ctx.direction = isRtl() ? 'rtl' : 'ltr';
+  ctx.textAlign = alignOf(side);
+}
 
 const imageCache = new Map();
 
@@ -221,23 +239,31 @@ export async function renderLineupPoster() {
   ctx.fillStyle = team.color;
   ctx.fillRect(0, 0, W, 8);
 
-  ctx.textAlign = 'left';
+  setAlign(ctx, 'start');
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#f2f8fa';
   ctx.font = '800 62px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText(team.name || 'Lineup', 56, 96);
+  ctx.fillText(team.name || t('poster.fallbackName'), edgeOf('start'), 96);
 
   ctx.font = '600 26px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = '#9fb2bd';
-  ctx.fillText(`Starting lineup · ${formation.label} formation`, 56, 140);
+  ctx.fillText(t('poster.subtitle', { formation: formationLabel(team.formation) }), edgeOf('start'), 140);
 
-  ctx.textAlign = 'right';
+  setAlign(ctx, 'end');
   ctx.font = '800 30px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = team.color;
-  ctx.fillText(formation.label, W - 56, 96);
+  ctx.fillText(formationLabel(team.formation), edgeOf('end'), 96);
   ctx.font = '600 20px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = '#7f939e';
-  ctx.fillText(new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }), W - 56, 136);
+  ctx.fillText(
+    new Date().toLocaleDateString(getLang(), {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }),
+    edgeOf('end'),
+    136,
+  );
 
   drawPitch(ctx, team.color);
 
@@ -274,17 +300,17 @@ export async function renderLineupPoster() {
   const subs = store.substitutes();
   const subsTop = PITCH_Y + PITCH_H + 34;
 
-  ctx.textAlign = 'left';
+  setAlign(ctx, 'start');
   ctx.fillStyle = '#7f939e';
   ctx.font = '700 18px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText(`SUBSTITUTES (${subs.length})`, 56, subsTop + 16);
+  ctx.fillText(t('poster.subsTitle', { count: subs.length }), edgeOf('start'), subsTop + 16);
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.fillRect(56, subsTop + 30, W - 112, 2);
 
   if (!subs.length) {
     ctx.fillStyle = 'rgba(159,178,189,0.6)';
     ctx.font = '600 22px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText('No substitutes registered', 56, subsTop + 76);
+    ctx.fillText(t('poster.subsEmpty'), edgeOf('start'), subsTop + 76);
   } else {
     const cardW = 168;
     const cardH = 118;
@@ -307,25 +333,30 @@ export async function renderLineupPoster() {
       ctx.stroke();
 
       ctx.fillStyle = team.color;
-      ctx.fillRect(x, y + 12, 4, cardH - 24);
+      ctx.fillRect(isRtl() ? x + cardW - 16 : x, y + 12, 4, cardH - 24);
 
-      ctx.textAlign = 'left';
+      setAlign(ctx, 'start');
+      const padStart = isRtl() ? x + 20 : x + 92;
       ctx.fillStyle = '#eef5f8';
       ctx.font = '700 24px "Segoe UI", system-ui, sans-serif';
       const label = player.name.length > 12 ? `${player.name.slice(0, 11)}…` : player.name;
-      ctx.fillText(label, x + 92, y + 50);
+      ctx.fillText(label, padStart, y + 50);
       ctx.fillStyle = '#8fa3ae';
       ctx.font = '600 19px "Segoe UI", system-ui, sans-serif';
-      ctx.fillText(`${player.position} · #${player.number}`, x + 92, y + 78);
+      ctx.fillText(
+        t('poster.subsMeta', { position: positionLabel(player.position), number: player.number }),
+        padStart,
+        y + 78);
 
-      await drawPlayer(ctx, player, team, x + 48, y + cardH / 2, 32, false);
+      await drawPlayer(ctx, player, team, isRtl() ? x + cardW - 48 : x + 48, y + cardH / 2, 32, false);
     }
   }
 
   ctx.textAlign = 'center';
+  ctx.direction = isRtl() ? 'rtl' : 'ltr';
   ctx.fillStyle = 'rgba(159,178,189,0.5)';
   ctx.font = '600 18px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText(`6 a side · 1 goalkeeper + 5 outfield · ${POS_LABEL.GK} duties locked to goal`, W / 2, H - 34);
+  ctx.fillText(t('poster.footer', { gk: positionLabel('GK') }), W / 2, H - 34);
 
   return canvas;
 }

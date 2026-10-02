@@ -3,11 +3,12 @@ import { createDragController } from './drag.js';
 import { createPitch } from './pitch.js';
 import { createBench } from './bench.js';
 import { createSidebar } from './sidebar.js';
-import { downloadLineupPoster } from './exportPng.js';
+import { downloadLineupPoster, renderLineupPoster } from './exportPng.js';
 import { store } from './store.js';
 import { getFormation, starterSlotIds } from './data.js';
 import { createSync } from './sync.js';
 import { toast } from './util.js';
+import { LANGS, applyDom, getLang, initLang, onLangChange, t, toggleLang } from './i18n.js';
 
 const stage = document.getElementById('stage');
 const canvas = document.getElementById('scene');
@@ -66,7 +67,7 @@ createDragController({
     const originSlotId = typeof origin === 'string' && origin.startsWith('slot:') ? origin.slice(5) : null;
     if (drop === 'bench') {
       const result = store.dropPlayer(playerId, null, originSlotId);
-      if (result.ok) toast('Player benched');
+      if (result.ok) toast(t('toast.benched'));
       return;
     }
     if (!drop.startsWith('slot:')) return;
@@ -74,12 +75,12 @@ createDragController({
     if (originSlotId === targetSlotId) return;
     const result = store.dropPlayer(playerId, targetSlotId, originSlotId);
     if (!result.ok && result.reason === 'gk-outfield') {
-      toast('Goalkeepers can only play in goal', 'warn');
+      toast(t('toast.gkOnly'), 'warn');
       return;
     }
     if (result.ok && result.benched) {
       const benched = store.playerById(result.benched);
-      if (benched) toast(`${benched.name} sent to the bench`);
+      if (benched) toast(t('toast.sentOff', { name: benched.name }));
     }
     pitch?.clearSelection();
   },
@@ -97,7 +98,7 @@ createDragController({
       return;
     }
     pitch.select(slotId);
-    toast('Now tap another player to swap them');
+    toast(t('toast.swapHint'));
   },
   onDragStateChange(active) {
     bench.classList.toggle('drag-active', active);
@@ -106,13 +107,13 @@ createDragController({
 
 document.getElementById('autoFill').addEventListener('click', () => {
   const { filled } = store.autoFill();
-  toast(filled ? `Fielded ${filled} player${filled === 1 ? '' : 's'}` : 'No matching players on the bench', filled ? 'ok' : 'warn');
+  toast(filled ? t('toast.fielded', { count: filled }) : t('toast.noMatches'), filled ? 'ok' : 'warn');
 });
 
 document.getElementById('clearXI').addEventListener('click', () => {
   if (!store.starters().length) return;
   store.clearLineup();
-  toast('Pitch cleared - everyone to the bench');
+  toast(t('toast.pitchCleared'));
 });
 
 document.getElementById('zoomIn').addEventListener('click', () => stadium?.zoom(0.82));
@@ -124,10 +125,10 @@ document.getElementById('exportPNG').addEventListener('click', async (event) => 
   btn.disabled = true;
   try {
     await downloadLineupPoster();
-    toast('Lineup PNG downloaded');
+    toast(t('toast.pngDownloaded'));
   } catch (err) {
     console.error(err);
-    toast('Could not export the poster', 'warn');
+    toast(t('toast.exportFailed'), 'warn');
   } finally {
     btn.disabled = false;
   }
@@ -141,7 +142,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (event.key === 'f' || event.key === 'F') {
     const { filled } = store.autoFill();
-    toast(filled ? `Fielded ${filled} player${filled === 1 ? '' : 's'}` : 'No matching players on the bench', filled ? 'ok' : 'warn');
+    toast(filled ? t('toast.fielded', { count: filled }) : t('toast.noMatches'), filled ? 'ok' : 'warn');
   }
 });
 
@@ -162,40 +163,47 @@ const pinFoot = document.getElementById('pinFoot');
 const sync = createSync({
   store,
   onChange: renderBoardPill,
-  onConflict: () => toast('Someone else edited the board - your version replaced theirs', 'warn'),
+  onConflict: () => toast(t('toast.conflict'), 'warn'),
 });
 
+/* Phase classes are fixed; the words come from the dictionary so they change
+   with the language. `key` is looked up again on every language change. */
 const PHASES = {
-  local: { cls: 'is-local', text: 'This device only' },
-  connecting: { cls: 'is-connecting', text: 'Connecting' },
-  readonly: { cls: 'is-readonly', text: 'View only' },
-  empty: { cls: 'is-readonly', text: 'Empty board' },
-  editing: { cls: 'is-live', text: 'Live' },
-  offline: { cls: 'is-offline', text: 'Offline' },
+  local: { cls: 'is-local', key: 'board.local' },
+  connecting: { cls: 'is-connecting', key: 'board.connecting' },
+  readonly: { cls: 'is-readonly', key: 'board.readonly' },
+  empty: { cls: 'is-readonly', key: 'board.empty' },
+  editing: { cls: 'is-live', key: 'board.editing' },
+  offline: { cls: 'is-offline', key: 'board.offline' },
+  conflict: { cls: 'is-live', key: 'board.conflict' },
+};
+
+const BOARD_TITLE = {
+  on: 'board.titleLong',
+  off: 'board.titleOff',
 };
 
 function renderBoardPill(status) {
-  const phase = PHASES[status.phase] ?? PHASES.local;
+  const key = status.phase === 'editing' && status.conflict ? 'conflict' : status.phase;
+  const phase = PHASES[key] ?? PHASES.local;
   boardPill.className = `board-pill ${phase.cls}`;
-  boardLabel.textContent = status.phase === 'editing' && status.conflict ? 'Live · conflict' : phase.text;
+  boardLabel.textContent = t(phase.key);
   if (status.error === 'invalid_pin') {
     boardPill.className = 'board-pill is-error';
-    boardLabel.textContent = 'Wrong PIN';
+    boardLabel.textContent = t('board.wrongPin');
   }
-  boardPill.title = status.enabled
-    ? 'Shared board: everyone with this link sees the same lineup. Click to change edit access.'
-    : 'Sync is not configured for this build.';
+  boardPill.title = t(status.enabled ? BOARD_TITLE.on : BOARD_TITLE.off);
 }
 
 function openPinModal() {
   pinModal.hidden = false;
   pinError.hidden = true;
   pinInput.value = '';
-  pinFoot.textContent = sync.unlocked
-    ? 'You have edit access on this tab. Locking it makes this browser view-only again.'
-    : 'Your PIN is kept only for this browser tab.';
-  document.getElementById('pinTitle').textContent = sync.unlocked ? 'Board access' : 'Edit the shared board';
-  document.querySelector('#pinForm button[type="submit"]').textContent = sync.unlocked ? 'Lock board' : 'Unlock';
+  pinFoot.textContent = t(sync.unlocked ? 'pin.footLocked' : 'pin.foot');
+  document.getElementById('pinTitle').textContent = t(sync.unlocked ? 'pin.titleLocked' : 'pin.title');
+  document.querySelector('#pinForm button[type="submit"]').textContent = t(
+    sync.unlocked ? 'action.lock' : 'action.unlock',
+  );
   pinInput.focus();
 }
 
@@ -214,7 +222,7 @@ pinForm.addEventListener('submit', async (event) => {
   if (sync.unlocked) {
     sync.lock();
     closePinModal();
-    toast('Board locked - view only on this tab');
+    toast(t('toast.locked'));
     return;
   }
   const ok = await sync.unlock(pinInput.value);
@@ -225,22 +233,54 @@ pinForm.addEventListener('submit', async (event) => {
     return;
   }
   closePinModal();
-  toast('Editing enabled - everyone can see your changes', 'ok');
+  toast(t('toast.unlocked'), 'ok');
 });
 
 store.onBlocked = () => {
   if (pinModal.hidden) openPinModal();
 };
 
-window.lineupStudio = { store, stadium, pitch, bench: benchUI, sync };
+window.lineupStudio = { store, stadium, pitch, bench: benchUI, sync, renderPoster: renderLineupPoster };
 
 sync.start().then(() => {
   if (!sync.status.enabled) return;
   if (!sync.unlocked) {
-    setTimeout(() => toast('Shared board loaded - tap the Live badge to edit it', 'ok'), 900);
+    setTimeout(() => toast(t('toast.boardLoaded'), 'ok'), 900);
   }
 });
 
 if (!store.activeTeam.players.length) {
-  setTimeout(() => toast('Add your squad on the left, then drag players onto the pitch'), 500);
+  setTimeout(() => toast(t('toast.addSquad')), 500);
 }
+
+/* ------------------------------ language ------------------------------ */
+
+const langToggle = document.getElementById('langToggle');
+const langLabel = document.getElementById('langLabel');
+
+function renderLangToggle() {
+  const lang = getLang();
+  const next = LANGS.find((entry) => entry.id !== lang);
+  langLabel.textContent = LANGS.find((entry) => entry.id === next.id)?.native ?? next.id;
+  langToggle.setAttribute('aria-label', t('action.switchLang', { lang: next.name }));
+  langToggle.setAttribute('title', t('action.switchLang', { lang: next.name }));
+}
+
+langToggle.addEventListener('click', () => {
+  toggleLang();
+  // Pin keys may hold live text; re-apply them from the dictionary.
+  if (!pinModal.hidden) openPinModal();
+  renderBoardPill(sync.status);
+});
+
+onLangChange(() => {
+  applyDom();
+  renderLangToggle();
+  sidebar.render();
+  benchUI.render();
+  pitch.render();
+  renderBoardPill(sync.status);
+});
+
+initLang();
+renderLangToggle();

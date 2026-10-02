@@ -69,6 +69,9 @@ input, select { font: inherit; color: inherit; }
 
 .app.sidebar-hidden .sidebar { margin-left: calc(var(--sidebar-w) * -1); }
 
+/* Only exists on small screens; see the responsive block at the bottom. */
+.sidebar-scrim { display: none; }
+
 .brand { display: flex; align-items: center; gap: 10px; padding: 2px 2px 6px; }
 
 .brand-mark svg { width: 30px; height: 30px; stroke: none; }
@@ -703,15 +706,52 @@ body.is-dragging .card { cursor: grabbing; }
 @media (max-width: 900px) {
   :root { --sidebar-w: 300px; }
   .app { flex-direction: column-reverse; }
+
+  /*
+   * The sidebar becomes a bottom sheet that sits on top of the stage instead
+   * of taking part in the flex layout. Sliding it with a negative margin made
+   * the freed space flow back into the stage, so the stage jumped from 58vh to
+   * well over 100vh every time the panel was hidden and the camera refitted to
+   * the wrong height. translateY moves it out of the viewport without touching
+   * the stage at all.
+   */
   .sidebar {
+    position: fixed;
+    inset: auto 0 0 0;
     width: 100%;
-    flex: 0 0 auto;
-    max-height: 40vh;
+    max-height: min(58dvh, 520px);
     border-right: 0;
     border-top: 1px solid var(--line);
-    box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.5);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.55);
+    transform: translateY(0);
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
-  .app.sidebar-hidden .sidebar { margin-left: 0; margin-bottom: -100vh; }
+
+  .app.sidebar-hidden .sidebar {
+    margin-left: 0;
+    transform: translateY(101%);
+    visibility: hidden;
+    /* visibility is only applied once the slide-out finished */
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+  }
+
+  /* Dim the pitch while the panel covers it; tapping the scrim closes it. */
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 8, 11, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    z-index: 19;
+    transition: opacity 0.28s ease, visibility 0s linear 0.28s;
+  }
+
+  .app:not(.sidebar-hidden) .sidebar-scrim { opacity: 1; visibility: visible; transition: opacity 0.28s ease, visibility 0s linear 0s; }
+
   .stage { min-height: 58vh; }
   .stage-hint { display: none; }
   .bench { bottom: 8px; width: calc(100% - 20px); padding: 6px 8px 8px; }
@@ -721,7 +761,12 @@ body.is-dragging .card { cursor: grabbing; }
   .bench-slot-card .card-avatar { width: 36px; height: 36px; font-size: 11px; }
   .bench-slot-card .card-name { max-width: 74px; font-size: 9.5px; padding: 0 4px; }
   .bench-slot-card .sub-pos { font-size: 8px; padding: 0 3px; }
-  .toolbar { top: 8px; left: 8px; }
+  .toolbar {
+    top: 8px;
+    left: 8px;
+    /* above the scrim, so Export / zoom stay reachable while the sheet is open */
+    z-index: 21;
+  }
 }
 
 @media (max-width: 560px) {
@@ -729,4 +774,42 @@ body.is-dragging .card { cursor: grabbing; }
   .toolbar .btn .ico { width: 17px; height: 17px; }
   .slot { width: 104px; margin-left: -52px; }
   .card-name { max-width: 100px; font-size: 10.5px; }
+}
+
+/* ------------------------------- RTL ------------------------------- */
+
+/*
+ * The layout is mirrored by the document direction rather than by flipping the
+ * flex order: `dir="rtl"` already puts the first flex item on the right, which
+ * is exactly what we want for a sidebar that sits on the start edge. Only the
+ * physical chrome around it needs mirroring.
+ */
+[dir='rtl'] .sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(120% 60% at 100% 0%, rgba(182, 255, 60, 0.07), transparent 60%),
+    linear-gradient(180deg, #0c1318, #080d11);
+  transition: margin-right 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[dir='rtl'] .app.sidebar-hidden .sidebar { margin-left: 0; margin-right: calc(var(--sidebar-w) * -1); }
+
+[dir='rtl'] .toolbar { left: auto; right: 12px; }
+[dir='rtl'] .stage-hint { margin-left: 0; margin-right: -64px; }
+
+[dir='rtl'] .sidebar-close { margin-left: 0; margin-right: auto; }
+[dir='rtl'] .sidebar-foot { direction: rtl; }
+[dir='rtl'] .squad-row { flex-direction: row-reverse; }
+[dir='rtl'] .bench-sub { margin-left: 0; margin-right: auto; }
+[dir='rtl'] select { background-position: left 13px center, left 8px center; padding-right: 12px; padding-left: 26px; }
+[dir='rtl'] .toast { transform: translate(50%, 0); }
+[dir='rtl'] .toast.show { transform: translate(50%, 0); }
+[dir='rtl'] .slot { margin-left: 0; margin-right: -52px; }
+[dir='rtl'] .board-pill { padding: 5px 9px 5px 11px; }
+
+@media (max-width: 900px) {
+  [dir='rtl'] .toolbar { left: auto; right: 8px; }
+  [dir='rtl'] .sidebar { border-left: 0; }
+  [dir='rtl'] .app.sidebar-hidden .sidebar { margin-right: 0; }
 }
