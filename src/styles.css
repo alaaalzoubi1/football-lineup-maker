@@ -69,9 +69,6 @@ input, select { font: inherit; color: inherit; }
 
 .app.sidebar-hidden .sidebar { margin-left: calc(var(--sidebar-w) * -1); }
 
-/* Only exists on small screens; see the responsive block at the bottom. */
-.sidebar-scrim { display: none; }
-
 .brand { display: flex; align-items: center; gap: 10px; padding: 2px 2px 6px; }
 
 .brand-mark svg { width: 30px; height: 30px; stroke: none; }
@@ -704,22 +701,31 @@ body.is-dragging .card { cursor: grabbing; }
 /* ---------------------------- responsive ---------------------------- */
 
 @media (max-width: 900px) {
-  :root { --sidebar-w: 300px; }
-  .app { flex-direction: column-reverse; }
+  :root { --sidebar-w: 300px; --sheet-h: min(46dvh, 380px); }
 
   /*
-   * The sidebar becomes a bottom sheet that sits on top of the stage instead
-   * of taking part in the flex layout. Sliding it with a negative margin made
-   * the freed space flow back into the stage, so the stage jumped from 58vh to
-   * well over 100vh every time the panel was hidden and the camera refitted to
-   * the wrong height. translateY moves it out of the viewport without touching
-   * the stage at all.
+   * The sidebar becomes a bottom sheet drawn over a strip that .app reserves
+   * with padding-bottom. Two things fall out of that:
+   *
+   *  - The stage height is the same whether the sheet is open or closed, so
+   *    toggling it never refits the camera. Sliding the sheet with a negative
+   *    margin instead used to hand the freed space back to the stage, which
+   *    jumped from 58vh to well over 100vh every time the panel was hidden.
+   *  - The sheet never covers the pitch or the bench, so a player can be
+   *    dragged out of the squad list and straight onto a slot. A full-height
+   *    scrim that swallowed those pointer events made the whole board
+   *    undraggable while the panel was open.
    */
+  /* overflow: hidden keeps the slid-out sheet from creating scrollable
+     overflow — an absolutely positioned element still contributes its
+     translated box to the scroll area even though it is off screen. */
+  .app { position: relative; flex-direction: column; padding-bottom: var(--sheet-h); overflow: hidden; }
+
   .sidebar {
-    position: fixed;
+    position: absolute;
     inset: auto 0 0 0;
     width: 100%;
-    max-height: min(58dvh, 520px);
+    height: var(--sheet-h);
     border-right: 0;
     border-top: 1px solid var(--line);
     border-radius: 16px 16px 0 0;
@@ -727,7 +733,7 @@ body.is-dragging .card { cursor: grabbing; }
     transform: translateY(0);
     visibility: visible;
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
-    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .app.sidebar-hidden .sidebar {
@@ -738,21 +744,7 @@ body.is-dragging .card { cursor: grabbing; }
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
   }
 
-  /* Dim the pitch while the panel covers it; tapping the scrim closes it. */
-  .sidebar-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(4, 8, 11, 0.55);
-    opacity: 0;
-    visibility: hidden;
-    z-index: 19;
-    transition: opacity 0.28s ease, visibility 0s linear 0.28s;
-  }
-
-  .app:not(.sidebar-hidden) .sidebar-scrim { opacity: 1; visibility: visible; transition: opacity 0.28s ease, visibility 0s linear 0s; }
-
-  .stage { min-height: 58vh; }
+  .stage { min-height: 0; }
   .stage-hint { display: none; }
   .bench { bottom: 8px; width: calc(100% - 20px); padding: 6px 8px 8px; }
   .bench-head { padding: 0 2px 6px; }
@@ -761,12 +753,7 @@ body.is-dragging .card { cursor: grabbing; }
   .bench-slot-card .card-avatar { width: 36px; height: 36px; font-size: 11px; }
   .bench-slot-card .card-name { max-width: 74px; font-size: 9.5px; padding: 0 4px; }
   .bench-slot-card .sub-pos { font-size: 8px; padding: 0 3px; }
-  .toolbar {
-    top: 8px;
-    left: 8px;
-    /* above the scrim, so Export / zoom stay reachable while the sheet is open */
-    z-index: 21;
-  }
+  .toolbar { top: 8px; left: 8px; }
 }
 
 @media (max-width: 560px) {
@@ -810,6 +797,6 @@ body.is-dragging .card { cursor: grabbing; }
 
 @media (max-width: 900px) {
   [dir='rtl'] .toolbar { left: auto; right: 8px; }
-  [dir='rtl'] .sidebar { border-left: 0; }
-  [dir='rtl'] .app.sidebar-hidden .sidebar { margin-right: 0; }
+  /* the sheet is a full-width bottom strip, so there is no start edge to mirror */
+  [dir='rtl'] .sidebar { border-left: 0; border-right: 0; }
 }

@@ -26,7 +26,6 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     resetAll: document.getElementById('resetAll'),
     close: document.getElementById('sidebarClose'),
     open: document.getElementById('sidebarOpen'),
-    scrim: document.getElementById('sidebarScrim'),
   };
 
   let pendingPhoto = null;
@@ -226,9 +225,8 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     toast(t('toast.everythingReset'));
   });
 
-  el.close.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
-  el.open?.addEventListener('click', () => el.app.classList.remove('sidebar-hidden'));
-  el.scrim?.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
+el.close.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
+el.open?.addEventListener('click', () => el.app.classList.remove('sidebar-hidden'));
 
   render();
 
