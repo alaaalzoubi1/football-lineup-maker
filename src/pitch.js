@@ -102,7 +102,10 @@ export function createPitch({ overlay, stadium }) {
         scale = Math.min(scale, SCALE_SAFETY * Math.max(dx / CARD_W, dy / CARD_H));
       }
     }
-scale = clamp(scale, 0.34, 1);
+/* The floor has to be low enough for a phone in portrait, where the play area
+   is a short strip: at 0.34 the cards hit the clamp and start overlapping
+   each other instead of just getting smaller. */
+scale = clamp(scale, 0.2, 1);
     if (Number.isFinite(scale) && Math.abs(scale - lastScale) > 0.004) {
       lastScale = scale;
       overlay.style.setProperty('--slot-scale', scale.toFixed(3));

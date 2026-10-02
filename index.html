@@ -26,9 +26,19 @@
 
         <div class="team-tabs" id="teamTabs" role="tablist" data-i18n-aria-label="aria.teams" aria-label="Teams"></div>
 
-        <section class="panel team-panel">
+        <!-- Phone only: the sheet is far shorter than these panels stacked, so
+             one panel at a time gets the whole sheet. See .sheet-tabs in styles.css. -->
+        <div class="sheet-tabs" id="sheetTabs" role="tablist" data-i18n-aria-label="sheet.label" aria-label="Sidebar section">
+          <button class="sheet-tab" type="button" role="tab" data-sheet-tab="add" data-i18n="panel.addPlayer">Add player</button>
+          <button class="sheet-tab" type="button" role="tab" data-sheet-tab="squad" data-i18n="panel.squad">Squad</button>
+        </div>
+
+        <section class="panel team-panel" id="teamPanel" data-open="false">
           <div class="panel-head">
             <h3 data-i18n="panel.team">Team</h3>
+            <button class="panel-toggle" id="teamToggle" type="button" aria-expanded="false" aria-controls="teamPanel" data-i18n-aria-label="action.toggleTeam">
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
           </div>
           <label class="field">
             <span class="field-label" data-i18n="field.clubName">Club name</span>
@@ -100,21 +110,27 @@
       </aside>
 
       <main class="stage" id="stage">
-        <canvas id="scene"></canvas>
-        <div class="overlay" id="overlay" aria-live="polite"></div>
+        <!-- The bench floats over the bottom of the stage, so the pitch gets a
+             play area that stops above it. Otherwise the lowest row of cards
+             ends up underneath the bench and cannot be dropped on. -->
+        <div class="stage-play" id="stagePlay">
+          <canvas id="scene"></canvas>
+          <div class="overlay" id="overlay" aria-live="polite"></div>
+        </div>
 
         <div class="toolbar" id="toolbar">
           <button class="icon-btn sidebar-open" id="sidebarOpen" type="button" data-i18n-title="action.showPanel" data-i18n-aria-label="action.showPanel" title="Show panel" aria-label="Show panel">
             <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
           </button>
           <div class="toolbar-group">
-            <button class="btn btn-sm" id="autoFill" type="button" data-i18n-title="action.autoFillTitle" title="Fill empty slots from the bench by position">
+            <button class="btn btn-sm" id="autoFill" type="button" data-i18n-title="action.autoFillTitle" data-i18n-aria-label="action.autoFill" title="Fill empty slots from the bench by position" aria-label="Auto-fill">
               <svg viewBox="0 0 24 24" class="ico"><path d="M12 3l4 4h-3v6h-2V7H8z"/><path d="M5 19h14"/></svg>
-              Auto-fill
+              <span data-i18n="action.autoFill">Auto-fill</span>
             </button>
-            <button class="btn btn-sm" id="clearXI" type="button" data-i18n="action.clearPitch">
+            <button class="btn btn-sm" id="clearXI" type="button"
+                  data-i18n-title="action.clearPitch" data-i18n-aria-label="action.clearPitch" title="Clear pitch" aria-label="Clear pitch">
               <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18"/></svg>
-              Clear pitch
+              <span data-i18n="action.clearPitch">Clear pitch</span>
             </button>
           </div>
           <div class="toolbar-group">
@@ -137,9 +153,10 @@
                   title="Switch language" aria-label="Switch language">
             <span id="langLabel">ع</span>
           </button>
-          <button class="btn btn-accent btn-sm" id="exportPNG" type="button" data-i18n="action.export">
+          <button class="btn btn-accent btn-sm" id="exportPNG" type="button"
+                  data-i18n-title="action.export" data-i18n-aria-label="action.export" aria-label="Export PNG" title="Export PNG">
             <svg viewBox="0 0 24 24" class="ico"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v3h16v-3"/></svg>
-            Export PNG
+            <span data-i18n="action.export">Export PNG</span>
           </button>
         </div>
 
@@ -147,10 +164,12 @@
 
         <section class="bench" id="bench" data-drop="bench">
           <div class="bench-head">
-            <span class="bench-title" data-i18n="bench.title">
-              <svg viewBox="0 0 24 24" class="ico"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M3 19h18"/></svg>
-              Substitute bench
-            </span>
+<span class="bench-title">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M3 19h18"/></svg>
+            <!-- The label lives in its own span: data-i18n writes textContent,
+                 which would delete the icon next to it. -->
+            <span data-i18n="bench.title">Substitute bench</span>
+          </span>
             <span class="bench-sub" id="benchSub" data-i18n="bench.sub">Drag a player off the pitch to bench them</span>
           </div>
           <div class="bench-track" id="benchTrack"></div>

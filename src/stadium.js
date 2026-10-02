@@ -204,13 +204,26 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
     fitDir.normalize();
     let dist = camera.position.distanceTo(controls.target) || 160;
 
-    const w = stage.clientWidth || 1;
-    const h = stage.clientHeight || 1;
+    // Must be the play area, not the stage: the renderer and the slot overlay
+    // both live in there, and fitting to a different box squeezes the formation
+    // into a strip of the viewport.
+    const play = document.getElementById('stagePlay') || stage;
+    const w = play.clientWidth || 1;
+    const h = play.clientHeight || 1;
     const cx = w / 2;
     const cy = h / 2;
     const limX = Math.max(24, cx - Math.max(20, w * 0.02));
-    const limTop = Math.max(24, cy - Math.min(safeTop(), h * 0.22));
-    const limBottom = Math.max(24, cy - Math.min(safeBottom(), h * 0.42));
+    // The floating toolbar and bench are only outside the play area on a
+    // phone, where CSS insets them away. Guarding for them again here would
+    // zoom out a second time and collapse the formation.
+    const playRect = play.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const insetTop = playRect.top - stageRect.top;
+    const insetBottom = stageRect.bottom - playRect.bottom;
+    const topGuard = insetTop > 1 ? 10 : Math.min(safeTop(), h * 0.22);
+    const bottomGuard = insetBottom > 1 ? 10 : Math.min(safeBottom(), h * 0.42);
+    const limTop = Math.max(24, cy - topGuard);
+    const limBottom = Math.max(24, cy - bottomGuard);
 
     for (let iter = 0; iter < 10; iter += 1) {
       camera.position.copy(controls.target).addScaledVector(fitDir, dist);
@@ -666,8 +679,9 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
   }
 
   function resize() {
-    const width = stage.clientWidth || 1;
-    const height = stage.clientHeight || 1;
+    const play = document.getElementById('stagePlay') || stage;
+    const width = play.clientWidth || 1;
+    const height = play.clientHeight || 1;
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
@@ -689,7 +703,7 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
 
   resize();
   const observer = new ResizeObserver(resize);
-  observer.observe(stage);
+  observer.observe(document.getElementById('stagePlay') || stage);
 
   let running = true;
   const clock = new THREE.Clock();

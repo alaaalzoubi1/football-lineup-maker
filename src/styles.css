@@ -83,6 +83,23 @@ input, select { font: inherit; color: inherit; }
 
 .team-tabs { display: flex; gap: 6px; padding: 3px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 10px; }
 
+/* Only meaningful in the mobile sheet, where the panels are switched one at a
+   time. Hidden on wide screens where the whole sidebar is on show. */
+.sheet-tabs { display: none; gap: 6px; padding: 3px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 10px; }
+.sheet-tab {
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sheet-tab[aria-selected='true'] { background: rgba(255, 255, 255, 0.08); border-color: var(--line); color: var(--text); }
+
 .team-tab {
   flex: 1;
   display: flex;
@@ -114,6 +131,22 @@ input, select { font: inherit; color: inherit; }
 
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .panel-head h3 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+
+/* Collapses the team settings inside the phone sheet; irrelevant on desktop. */
+.panel-toggle {
+  display: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.panel-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.panel-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
 
 .badge {
   display: inline-flex;
@@ -257,6 +290,11 @@ select option { background: #111a20; }
   padding: 6px 7px;
   border-radius: 8px;
   border: 1px solid transparent;
+  /* Must match .card and .bench-slot-card: without it the browser claims the
+     gesture for scrolling and cancels the drag before a drag ever starts. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   transition: 0.14s;
 }
 .squad-row:hover { background: rgba(255, 255, 255, 0.045); border-color: var(--line); }
@@ -280,7 +318,7 @@ select option { background: #111a20; }
 .squad-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .squad-pos { font-size: 10.5px; color: var(--muted); letter-spacing: 0.4px; }
 .squad-status { font-size: 9.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--accent); }
-.squad-status.bench { color: var(--muted); }
+.squad-status.is-sub { color: var(--muted); }
 .squad-del { width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: rgba(139, 158, 168, 0.55); display: grid; place-items: center; }
 .squad-del:hover { color: var(--danger); background: rgba(255, 90, 95, 0.12); }
 .squad-del svg { width: 15px; height: 15px; }
@@ -294,6 +332,7 @@ select option { background: #111a20; }
 /* ---------------------------- stage ---------------------------- */
 
 .stage { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.stage-play { position: absolute; inset: 0; }
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
@@ -701,7 +740,7 @@ body.is-dragging .card { cursor: grabbing; }
 /* ---------------------------- responsive ---------------------------- */
 
 @media (max-width: 900px) {
-  :root { --sidebar-w: 300px; --sheet-h: min(46dvh, 380px); }
+  :root { --sidebar-w: 300px; --sheet-h: min(52dvh, 430px); }
 
   /*
    * The sidebar becomes a bottom sheet drawn over a strip that .app reserves
@@ -744,9 +783,103 @@ body.is-dragging .card { cursor: grabbing; }
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
   }
 
+  /* The two big panels are far taller than the sheet, so stacking them left
+     the squad list pushed off the bottom of the screen with zero rows
+     reachable. Show one at a time and let the squad own the whole sheet. */
+  .sidebar { overflow: hidden; gap: 8px; }
+  .brand-text { display: none; }
+
+  .sidebar[data-sheet='add'] .squad-panel,
+  .sidebar[data-sheet='squad'] .add-panel { display: none; }
+
+  .sidebar[data-sheet='add'] .add-panel,
+  .sidebar[data-sheet='squad'] .squad-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sheet-tabs { display: flex; }
+
+  .squad-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+  /* A landscape phone is ~844px wide but only ~390px tall, so a bottom sheet
+     gets a fifth of the screen and nothing fits in it. There is plenty of
+     room sideways, so the sidebar goes back to being a side drawer and uses
+     the full height instead. */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .app { flex-direction: row; padding-bottom: 0; }
+
+    /* There is room to the side, so the drawer goes back to taking layout
+       space instead of covering the pitch. Overlaying it hid the left half of
+       the bench, which put bench cards out of reach of a finger. */
+    .sidebar {
+      position: relative;
+      inset: auto;
+      width: var(--sidebar-w);
+      height: auto;
+      max-height: none;
+      overflow-y: auto;
+      border-top: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      box-shadow: 24px 0 60px rgba(0, 0, 0, 0.55);
+      padding-bottom: 10px;
+      transform: translateX(0);
+      visibility: visible;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+    }
+
+    .app.sidebar-hidden .sidebar {
+      margin-left: calc(var(--sidebar-w) * -1);
+      transform: translateX(0);
+      visibility: hidden;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+    }
+
+    /* With the full height to spend there is no reason to switch panels. The
+       bottom-sheet flex sizing would collapse one of them to zero height and
+       let the other paint over its rows, so both go back to natural height
+       and the drawer itself scrolls. */
+    .sheet-tabs { display: none; }
+    .sidebar[data-sheet='add'] .squad-panel,
+    .sidebar[data-sheet='squad'] .add-panel { display: flex; }
+    .sidebar[data-sheet='add'] .add-panel,
+    .sidebar[data-sheet='squad'] .squad-panel {
+      flex: 0 0 auto;
+      min-height: 0;
+      overflow: visible;
+    }
+    .squad-list { flex: 0 0 auto; min-height: 0; overflow-y: visible; }
+
+    /* One scrolling column, so put the squad first: it is what gets dragged. */
+    .squad-panel { order: 0; }
+    .add-panel { order: 1; }
+    .sidebar-foot { order: 2; }
+  }
+
+  /* Team name, kit colour and formation are set-once settings. Collapsing them
+     on a phone is what leaves the squad list the whole sheet. */
+  .panel-toggle { display: inline-grid; }
+  .team-panel:not([data-open='true']) > *:not(.panel-head) { display: none; }
+
   .stage { min-height: 0; }
+  /* The bench floats over the bottom of the stage and the toolbar over the top.
+     The play area stops at both, so pitch cards are never underneath one where
+     they can be seen but not touched. --stage-inset is published from JS. */
+  .stage-play { inset: var(--stage-inset, 0px); }
   .stage-hint { display: none; }
   .bench { bottom: 8px; width: calc(100% - 20px); padding: 6px 8px 8px; }
+  /* A fixed height: the bench's height feeds the play area, so letting it
+     change with its contents made the pitch reflow under the player's finger
+     every time the lineup was cleared or auto-filled. */
+  .bench { display: flex; flex-direction: column; height: 116px; }
+  .bench-head { flex: 0 0 auto; }
+  .bench-track { flex: 1 1 auto; min-height: 0; }
+  .bench:not(.has-subs) .bench-track { display: none; }
+  .bench:not(.has-subs) .bench-empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; margin: 0; padding: 4px; }
   .bench-head { padding: 0 2px 6px; }
   .bench-sub { display: none; }
   .bench-slot-card { padding: 5px 6px 6px; gap: 3px; }
@@ -754,6 +887,27 @@ body.is-dragging .card { cursor: grabbing; }
   .bench-slot-card .card-name { max-width: 74px; font-size: 9.5px; padding: 0 4px; }
   .bench-slot-card .sub-pos { font-size: 8px; padding: 0 3px; }
   .toolbar { top: 8px; left: 8px; }
+  /* One scrolling row instead of three wrapped ones: the play area reserves
+     this height, and 93px of it is a quarter of a phone's stage. */
+  .toolbar { flex-wrap: nowrap; overflow-x: auto; max-width: calc(100% - 16px); scrollbar-width: none; }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar .toolbar-group, .toolbar .icon-btn, .toolbar .btn-sm { flex: 0 0 auto; }
+  /* Icons only: the three labelled buttons plus the icon buttons overflow a
+     320px phone, which pushed Export off the edge of the scrolling row. Each
+     one keeps its aria-label and title. */
+  .toolbar .btn-sm { padding: 0; width: 32px; height: 32px; justify-content: center; font-size: 0; gap: 0; }
+  .toolbar .btn-sm .ico { width: 17px; height: 17px; }
+  .toolbar, .toolbar .toolbar-group { gap: 6px; }
+  /* The board pill's label is what pushed Export off a 320px phone. Hidden
+     visually but kept in the accessibility tree. */
+  .toolbar .board-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 560px) {

@@ -43,6 +43,26 @@ const pitch = stadium ? createPitch({ overlay, stadium }) : null;
 const benchUI = createBench({ bench, track: benchTrack, subLabel: benchSub });
 const sidebar = createSidebar();
 
+/* The bench floats over the bottom of the stage and the toolbar over the top.
+   Publish how much room each one takes so the pitch's play area can stop at
+   both, instead of cards ending up underneath where they show but cannot be
+   touched. Measured from the rects so the offsets CSS adds are included. */
+const GAP = 10;
+let insets = '';
+function publishStageInsets() {
+  const stageRect = stage.getBoundingClientRect();
+  const bottom = stageRect.bottom - bench.getBoundingClientRect().top + GAP;
+  const top = toolbar.getBoundingClientRect().bottom - stageRect.top + GAP;
+  const next = `${Math.max(0, Math.ceil(top))}px 0px ${Math.max(0, Math.ceil(bottom))}px 0px`;
+  if (next === insets) return;
+  insets = next;
+  stage.style.setProperty('--stage-inset', next);
+}
+publishStageInsets();
+new ResizeObserver(publishStageInsets).observe(bench);
+new ResizeObserver(publishStageInsets).observe(toolbar);
+addEventListener('resize', publishStageInsets);
+
 function renderAll() {
   sidebar.render();
   if (pitch) pitch.render();

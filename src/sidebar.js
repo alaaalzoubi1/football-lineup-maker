@@ -26,6 +26,10 @@ export function createSidebar({ onPlayerRemoved } = {}) {
     resetAll: document.getElementById('resetAll'),
     close: document.getElementById('sidebarClose'),
     open: document.getElementById('sidebarOpen'),
+    sidebar: document.getElementById('sidebar'),
+    sheetTabs: document.getElementById('sheetTabs'),
+    teamPanel: document.getElementById('teamPanel'),
+    teamToggle: document.getElementById('teamToggle'),
   };
 
   let pendingPhoto = null;
@@ -113,7 +117,7 @@ export function createSidebar({ onPlayerRemoved } = {}) {
             <span class="squad-name">${esc(player.name)}</span>
             <span class="squad-pos">${esc(player.position)}${slotId ? ` &middot; ${esc(t('squad.onPitch'))}` : ''}</span>
           </span>
-          <span class="squad-status${onPitch ? '' : ' bench'}">${onPitch ? esc(t('squad.xi')) : esc(t('squad.sub'))}</span>
+          <span class="squad-status${onPitch ? '' : ' is-sub'}">${onPitch ? esc(t('squad.xi')) : esc(t('squad.sub'))}</span>
           <button class="squad-del" type="button" data-delete="${esc(player.id)}" title="${esc(t('action.removePlayer', { name: player.name }))}" aria-label="${esc(t('action.removePlayer', { name: player.name }))}">
             <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"/></svg>
           </button>
@@ -226,7 +230,46 @@ export function createSidebar({ onPlayerRemoved } = {}) {
   });
 
 el.close.addEventListener('click', () => el.app.classList.add('sidebar-hidden'));
-el.open?.addEventListener('click', () => el.app.classList.remove('sidebar-hidden'));
+  el.open?.addEventListener('click', () => el.app.classList.remove('sidebar-hidden'));
+
+  /* Phone only: the sheet shows the add-player form or the squad, never both. */
+  function setSheetTab(name) {
+    el.sidebar.dataset.sheet = name;
+    for (const btn of el.sheetTabs?.querySelectorAll('[data-sheet-tab]') ?? []) {
+      btn.setAttribute('aria-selected', String(btn.dataset.sheetTab === name));
+    }
+  }
+
+  el.sheetTabs?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-sheet-tab]');
+    if (btn) setSheetTab(btn.dataset.sheetTab);
+  });
+
+  const TEAM_OPEN_KEY = 'lineup-studio-team-open';
+  function setTeamOpen(open) {
+    el.teamPanel.dataset.open = String(open);
+    el.teamToggle.setAttribute('aria-expanded', String(open));
+    try {
+      localStorage.setItem(TEAM_OPEN_KEY, open ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  }
+
+  // Landscape draws the sidebar as a side drawer with the full height, so the
+  // team settings start open there and collapsed in the bottom sheet.
+  let teamOpen = window.matchMedia('(max-height: 520px) and (orientation: landscape)').matches;
+  try {
+    const saved = localStorage.getItem(TEAM_OPEN_KEY);
+    if (saved !== null) teamOpen = saved === '1';
+  } catch {
+    /* private mode */
+  }
+  setTeamOpen(teamOpen);
+  el.teamToggle.addEventListener('click', () => setTeamOpen(el.teamPanel.dataset.open !== 'true'));
+
+  // Start on the squad when there is already one to look at.
+  setSheetTab(store.activeTeam.players.length ? 'squad' : 'add');
 
   render();
 

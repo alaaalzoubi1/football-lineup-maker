@@ -104,7 +104,9 @@ const en = {
   'squad.dragHint': 'Drag onto the pitch',
   'action.removePlayer': 'Remove {name}',
   'action.switchLang': 'Switch to {lang}',
+  'action.toggleTeam': 'Show or hide team settings',
   'aria.teams': 'Teams',
+  'sheet.label': 'Sidebar section',
   'lang.switch': 'Switch language',
   'lang.label': 'Language',
 
@@ -238,7 +240,9 @@ const ar = {
   'squad.dragHint': 'اسحب إلى الملعب',
   'action.removePlayer': 'إزالة {name}',
   'action.switchLang': 'التبديل إلى {lang}',
+  'action.toggleTeam': 'إظهار أو إخفاء إعدادات الفريق',
   'aria.teams': 'الفرق',
+  'sheet.label': 'قسم اللوحة الجانبية',
   'lang.switch': 'تغيير اللغة',
   'lang.label': 'اللغة',
 

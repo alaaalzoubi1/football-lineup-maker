@@ -31,6 +31,16 @@ Arabic and English ship in `src/i18n.js` as two plain dictionaries.
 
 Adding a language means adding an entry to `LANGS` and a dictionary with the same keys.
 
+## Phones
+
+The layout changes shape rather than just getting narrower.
+
+- **Portrait** (≤900px) turns the sidebar into a bottom sheet. `.app` reserves a constant strip with `padding-bottom: var(--sheet-h)`, so the pitch never reflows when the sheet opens. The sheet shows one panel at a time via the `.sheet-tabs` toggle, and the team settings collapse behind `#teamToggle`. Its open state is remembered in `localStorage` under `lineup-studio-team-open`.
+- **Landscape** (≤520px tall) can't afford a sheet, so the sidebar becomes an in-flow side drawer and both panels show at once.
+- `#stagePlay` is the pitch's play area: `#scene` and `#overlay` live inside it, so nothing renders under the floating toolbar or the bench. `publishStageInsets()` in `main.js` measures those two and writes `--stage-inset`; `stadium.js` sizes and fits the camera to that box instead of the whole stage. Without it the lowest row of cards ends up behind the bench, visible but not droppable.
+- The bench has a fixed height on a phone for the same reason — a bench that grows as subs are added would move the slots mid-drag.
+- Toolbar buttons collapse to icons (`.btn-sm`, `.board-label`) so `#exportPNG` stays reachable on a 320px screen.
+
 ## Run it locally
 
 Requires [Node.js](https://nodejs.org) 18 or newer.
