@@ -602,7 +602,11 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
         markerGroup.add(group);
         markers.set(slot.id, group);
       }
-      group.position.set(slot.x, 0.03, slot.z);
+      // markerGroup is rotated -90deg about X, so its local axes are not the
+      // world's: local (x, y, z) lands at world (x, z, -y). Placing the ring at
+      // (slot.x, 0.03, slot.z) put it slot.z units *up in the air* instead of on
+      // the grass, which is where the stray floating circles came from.
+      group.position.set(slot.x, -slot.z, 0.03);
       const filled = Boolean(slot.playerId);
       const [ring, disc] = group.children;
       ring.material.opacity = filled ? 0.62 : 0.26;
@@ -624,7 +628,7 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
       new THREE.MeshBasicMaterial({ color: '#b6ff3c', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
     );
     selectionRing.position.copy(group.position);
-    selectionRing.position.y = 0.05;
+    selectionRing.position.z = 0.05; // local z is world up (see setSlots)
     markerGroup.add(selectionRing);
   }
 
@@ -648,12 +652,19 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
   shapeHalo.frustumCulled = false;
   scene.add(shapeHalo);
 
-  function setShape(points) {
-    if (points.length < 3) {
+  function setShape(rawPoints) {
+    if (rawPoints.length < 3) {
       shapeLine.visible = false;
       shapeHalo.visible = false;
       return;
     }
+    // Slots come in formation order (GK, defence, midfield, attack), which is not
+    // an order you can walk round the outline in: joining them as listed drew
+    // zig-zag lines straight across the pitch. Sorting by angle around the
+    // centroid gives a clean closed shape.
+    const cx = rawPoints.reduce((sum, pt) => sum + pt.x, 0) / rawPoints.length;
+    const cz = rawPoints.reduce((sum, pt) => sum + pt.z, 0) / rawPoints.length;
+    const points = [...rawPoints].sort((a, b) => Math.atan2(a.z - cz, a.x - cx) - Math.atan2(b.z - cz, b.x - cx));
     for (let i = 0; i < points.length; i += 1) {
       shapePositions[i * 3] = points[i].x;
       shapePositions[i * 3 + 1] = 0.14;

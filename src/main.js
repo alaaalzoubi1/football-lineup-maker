@@ -281,7 +281,10 @@ const langLabel = document.getElementById('langLabel');
 function renderLangToggle() {
   const lang = getLang();
   const next = LANGS.find((entry) => entry.id !== lang);
-  langLabel.textContent = LANGS.find((entry) => entry.id === next.id)?.native ?? next.id;
+  const nextEntry = LANGS.find((entry) => entry.id === next.id);
+  langLabel.textContent = nextEntry?.native ?? next.id;
+  const langShort = document.getElementById('langShort');
+  if (langShort) langShort.textContent = nextEntry?.short ?? next.id;
   langToggle.setAttribute('aria-label', t('action.switchLang', { lang: next.name }));
   langToggle.setAttribute('title', t('action.switchLang', { lang: next.name }));
 }

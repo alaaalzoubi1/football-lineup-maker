@@ -290,11 +290,13 @@ select option { background: #111a20; }
   padding: 6px 7px;
   border-radius: 8px;
   border: 1px solid transparent;
-  /* Must match .card and .bench-slot-card: without it the browser claims the
-     gesture for scrolling and cancels the drag before a drag ever starts. */
-  touch-action: none;
+  /* The list scrolls vertically under a finger, so a touch drag out of a row
+     starts with a short hold (drag.js) instead of claiming every gesture. The
+     pitch and bench cards still use touch-action: none. */
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   transition: 0.14s;
 }
 .squad-row:hover { background: rgba(255, 255, 255, 0.045); border-color: var(--line); }
@@ -335,7 +337,7 @@ select option { background: #111a20; }
 .stage-play { position: absolute; inset: 0; }
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; direction: ltr; }
 
 .toolbar {
   position: absolute;
@@ -468,6 +470,11 @@ body.read-only .slot.empty .slot-empty { border-style: dotted; }
 
 .slot {
   position: absolute;
+  /* Explicit origin. Without it the box sits at its static position, which in an
+     RTL document is the *right* edge, so every translate3d from pitch.js pushed
+     the cards off screen as soon as the language was switched to Arabic. */
+  left: 0;
+  top: 0;
   width: 128px;
   margin-left: -64px;
   margin-top: -27px;
@@ -480,6 +487,7 @@ body.read-only .slot.empty .slot-empty { border-style: dotted; }
 }
 
 .slot-inner {
+  direction: ltr;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -740,7 +748,7 @@ body.is-dragging .card { cursor: grabbing; }
 /* ---------------------------- responsive ---------------------------- */
 
 @media (max-width: 900px) {
-  :root { --sidebar-w: 300px; --sheet-h: min(52dvh, 430px); }
+  :root { --sidebar-w: 300px; --sheet-h: min(55dvh, 460px); }
 
   /*
    * The sidebar becomes a bottom sheet drawn over a strip that .app reserves
@@ -803,7 +811,34 @@ body.is-dragging .card { cursor: grabbing; }
 
   .sheet-tabs { display: flex; }
 
-  .squad-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  /* The squad panel no longer scrolls as a whole: its header stays put and only
+     the list scrolls, so the rows get everything the chrome above doesn't use. */
+  .sidebar[data-sheet='squad'] .squad-panel { overflow: hidden; }
+  .squad-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  /* Phone sheet chrome, squeezed. Logo + close button used to take a whole row
+     and the footer another; on a ~430px sheet that left room for one squad row. */
+  .sidebar { padding: 10px 12px; gap: 6px; }
+  .brand { position: absolute; top: 10px; inset-inline-end: 12px; padding: 0; z-index: 2; }
+  .brand-mark { display: none; }
+  .sidebar-close { width: 32px; height: 32px; margin: 0; }
+  .team-tabs { margin-inline-end: 42px; }
+  .team-tab { padding: 6px 10px; }
+  .sheet-tab { padding: 7px 10px; }
+  .panel { padding: 10px; }
+  .panel-head { margin-bottom: 8px; }
+  .team-panel:not([data-open='true']) { padding-block: 6px; }
+  .team-panel:not([data-open='true']) .panel-head { margin-bottom: 0; }
+  .squad-panel .panel-head { margin-bottom: 6px; }
+  .sidebar-foot { padding: 0 2px; font-size: 10px; }
+  .sidebar-foot .btn { padding: 3px 9px; }
 
   /* A landscape phone is ~844px wide but only ~390px tall, so a bottom sheet
      gets a fifth of the screen and nothing fits in it. There is plenty of
@@ -854,6 +889,11 @@ body.is-dragging .card { cursor: grabbing; }
     }
     .squad-list { flex: 0 0 auto; min-height: 0; overflow-y: visible; }
 
+    .brand { position: static; padding: 2px 2px 6px; }
+    .brand-mark { display: block; }
+    .sidebar-close { margin-inline-start: auto; }
+    .team-tabs { margin-inline-end: 0; }
+
     /* One scrolling column, so put the squad first: it is what gets dragged. */
     .squad-panel { order: 0; }
     .add-panel { order: 1; }
@@ -896,7 +936,10 @@ body.is-dragging .card { cursor: grabbing; }
      320px phone, which pushed Export off the edge of the scrolling row. Each
      one keeps its aria-label and title. */
   .toolbar .btn-sm { padding: 0; width: 32px; height: 32px; justify-content: center; font-size: 0; gap: 0; }
-  .toolbar .btn-sm .ico { width: 17px; height: 17px; }
+  .toolbar .btn-sm .ico { width: 17px; height: 17px; flex: 0 0 17px; }
+  /* font-size: 0 alone left the label in the flex row, which squeezed the icon
+     to zero width: Auto-fill and Clear pitch showed as empty boxes. */
+  .toolbar .btn-sm > span { display: none; }
   .toolbar, .toolbar .toolbar-group { gap: 6px; }
   /* The board pill's label is what pushed Export off a 320px phone. Hidden
      visually but kept in the accessibility tree. */
@@ -911,8 +954,6 @@ body.is-dragging .card { cursor: grabbing; }
 }
 
 @media (max-width: 560px) {
-  .toolbar-group:has(#autoFill) .btn span, .toolbar .btn { font-size: 0; gap: 0; padding: 7px 9px; }
-  .toolbar .btn .ico { width: 17px; height: 17px; }
   .slot { width: 104px; margin-left: -52px; }
   .card-name { max-width: 100px; font-size: 10.5px; }
 }
@@ -946,11 +987,78 @@ body.is-dragging .card { cursor: grabbing; }
 [dir='rtl'] select { background-position: left 13px center, left 8px center; padding-right: 12px; padding-left: 26px; }
 [dir='rtl'] .toast { transform: translate(50%, 0); }
 [dir='rtl'] .toast.show { transform: translate(50%, 0); }
-[dir='rtl'] .slot { margin-left: 0; margin-right: -52px; }
 [dir='rtl'] .board-pill { padding: 5px 9px 5px 11px; }
 
 @media (max-width: 900px) {
   [dir='rtl'] .toolbar { left: auto; right: 8px; }
   /* the sheet is a full-width bottom strip, so there is no start edge to mirror */
   [dir='rtl'] .sidebar { border-left: 0; border-right: 0; }
+}
+
+/* ------------------------- toolbar buttons, one system -------------------------
+ * Everything on the floating toolbar shares one height, one corner radius and one
+ * set of states. Before this, groups were 40px tall, standalone buttons 32px, the
+ * language button was an icon-sized box with a word jammed in it, and the shared
+ * board pill was a bare dot with stray padding.
+ */
+.toolbar { --tb-h: 38px; --tb-r: 10px; --tb-inner: 30px; }
+.toolbar-group { height: var(--tb-h); box-sizing: border-box; border-radius: var(--tb-r); }
+.toolbar-group .btn,
+.toolbar-group .icon-btn { height: var(--tb-inner); min-width: var(--tb-inner); border-radius: 7px; padding-block: 0; }
+.toolbar-group .icon-btn { width: var(--tb-inner); }
+.toolbar-group .btn { padding-inline: 10px; }
+
+/* standalone controls: same height as the groups */
+.toolbar > .board-pill,
+.toolbar > .lang-btn,
+.toolbar > .btn-accent,
+.toolbar > .sidebar-open {
+  height: var(--tb-h);
+  box-sizing: border-box;
+  border-radius: var(--tb-r);
+}
+.toolbar > .lang-btn,
+.toolbar > .sidebar-open { width: auto; min-width: var(--tb-h); padding: 0 12px; }
+.toolbar > .sidebar-open { padding: 0; width: var(--tb-h); }
+.toolbar > .btn-accent { padding: 0 14px; }
+
+.lang-btn { border: 1px solid var(--line); background: rgba(8, 13, 17, 0.72); backdrop-filter: blur(10px); color: var(--text); font-size: 12px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
+.lang-btn:hover { border-color: var(--line-strong); }
+.lang-btn .lang-short { display: none; font-size: 13px; }
+
+/* pressed + keyboard states, so every button answers a tap */
+.toolbar .btn:active,
+.toolbar .icon-btn:active,
+.toolbar .board-pill:active { transform: translateY(1px) scale(0.97); }
+.toolbar .btn-accent:active { background: #a6ef2d; border-color: #a6ef2d; }
+.toolbar :is(.btn, .icon-btn, .board-pill):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .toolbar { --tb-h: 40px; --tb-inner: 32px; gap: 6px; }
+
+  /* every control is a square on a phone; labels live in aria-label/title */
+  .toolbar .toolbar-group { padding: 3px; gap: 2px; }
+  .toolbar .toolbar-group .btn-sm { width: var(--tb-inner); padding: 0; }
+  .toolbar > .btn-accent { width: var(--tb-h); padding: 0; }
+  .toolbar > .btn-accent .ico { width: 18px; height: 18px; }
+
+  .toolbar > .lang-btn { width: var(--tb-h); min-width: var(--tb-h); padding: 0; }
+  .lang-btn .lang-full { display: none; }
+  .lang-btn .lang-short { display: inline; }
+
+  /* the shared-board pill becomes a round status button with just its dot */
+  .toolbar > .board-pill { width: var(--tb-h); min-width: var(--tb-h); padding: 0; justify-content: center; gap: 0; }
+  .toolbar > .board-pill .board-dot { width: 10px; height: 10px; }
+}
+
+@media (max-width: 900px) {
+  /* RTL: the row starts at the right edge and the first control stays reachable */
+  [dir='rtl'] .toolbar { direction: rtl; }
+  [dir='rtl'] .toolbar > .board-pill { padding: 0; }
+}
+
+/* very narrow phones (320px): a touch smaller so Export never scrolls out of sight */
+@media (max-width: 360px) {
+  .toolbar { --tb-h: 36px; --tb-inner: 28px; gap: 4px; }
+  .toolbar .toolbar-group { gap: 1px; }
 }
