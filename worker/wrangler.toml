@@ -1,0 +1,15 @@
+name = "lineup-board"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[vars]
+# Comma-separated list of origins allowed to call the board.
+origins = "https://alaaalzoubi1.github.io"
+
+# Single-row table holding the shared board document, plus the settings table
+# that keeps the editor PIN's SHA-256 digest (see schema.sql).
+[[d1_databases]]
+binding = "DB"
+database_name = "lineup-board"
+database_id = "02c3614e-6940-4589-9003-b999f078d2d0"

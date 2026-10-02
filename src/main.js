@@ -6,6 +6,7 @@ import { createSidebar } from './sidebar.js';
 import { downloadLineupPoster } from './exportPng.js';
 import { store } from './store.js';
 import { getFormation, starterSlotIds } from './data.js';
+import { createSync } from './sync.js';
 import { toast } from './util.js';
 
 const stage = document.getElementById('stage');
@@ -134,7 +135,10 @@ document.getElementById('exportPNG').addEventListener('click', async (event) => 
 
 window.addEventListener('keydown', (event) => {
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
-  if (event.key === 'Escape') pitch?.clearSelection();
+  if (event.key === 'Escape') {
+    pitch?.clearSelection();
+    closePinModal();
+  }
   if (event.key === 'f' || event.key === 'F') {
     const { filled } = store.autoFill();
     toast(filled ? `Fielded ${filled} player${filled === 1 ? '' : 's'}` : 'No matching players on the bench', filled ? 'ok' : 'warn');
@@ -144,7 +148,98 @@ window.addEventListener('keydown', (event) => {
 renderAll();
 window.addEventListener('beforeunload', () => store.persistNow());
 
-window.lineupStudio = { store, stadium, pitch, bench: benchUI };
+/* ----------------------------- shared board ----------------------------- */
+
+const boardPill = document.getElementById('boardPill');
+const boardLabel = document.getElementById('boardLabel');
+const pinModal = document.getElementById('pinModal');
+const pinForm = document.getElementById('pinForm');
+const pinInput = document.getElementById('pinInput');
+const pinError = document.getElementById('pinError');
+const pinCancel = document.getElementById('pinCancel');
+const pinFoot = document.getElementById('pinFoot');
+
+const sync = createSync({
+  store,
+  onChange: renderBoardPill,
+  onConflict: () => toast('Someone else edited the board - your version replaced theirs', 'warn'),
+});
+
+const PHASES = {
+  local: { cls: 'is-local', text: 'This device only' },
+  connecting: { cls: 'is-connecting', text: 'Connecting' },
+  readonly: { cls: 'is-readonly', text: 'View only' },
+  empty: { cls: 'is-readonly', text: 'Empty board' },
+  editing: { cls: 'is-live', text: 'Live' },
+  offline: { cls: 'is-offline', text: 'Offline' },
+};
+
+function renderBoardPill(status) {
+  const phase = PHASES[status.phase] ?? PHASES.local;
+  boardPill.className = `board-pill ${phase.cls}`;
+  boardLabel.textContent = status.phase === 'editing' && status.conflict ? 'Live · conflict' : phase.text;
+  if (status.error === 'invalid_pin') {
+    boardPill.className = 'board-pill is-error';
+    boardLabel.textContent = 'Wrong PIN';
+  }
+  boardPill.title = status.enabled
+    ? 'Shared board: everyone with this link sees the same lineup. Click to change edit access.'
+    : 'Sync is not configured for this build.';
+}
+
+function openPinModal() {
+  pinModal.hidden = false;
+  pinError.hidden = true;
+  pinInput.value = '';
+  pinFoot.textContent = sync.unlocked
+    ? 'You have edit access on this tab. Locking it makes this browser view-only again.'
+    : 'Your PIN is kept only for this browser tab.';
+  document.getElementById('pinTitle').textContent = sync.unlocked ? 'Board access' : 'Edit the shared board';
+  document.querySelector('#pinForm button[type="submit"]').textContent = sync.unlocked ? 'Lock board' : 'Unlock';
+  pinInput.focus();
+}
+
+function closePinModal() {
+  pinModal.hidden = true;
+}
+
+boardPill.addEventListener('click', openPinModal);
+pinCancel.addEventListener('click', closePinModal);
+pinModal.addEventListener('click', (event) => {
+  if (event.target === pinModal) closePinModal();
+});
+
+pinForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (sync.unlocked) {
+    sync.lock();
+    closePinModal();
+    toast('Board locked - view only on this tab');
+    return;
+  }
+  const ok = await sync.unlock(pinInput.value);
+  if (!ok) {
+    pinError.hidden = false;
+    pinInput.value = '';
+    pinInput.focus();
+    return;
+  }
+  closePinModal();
+  toast('Editing enabled - everyone can see your changes', 'ok');
+});
+
+store.onBlocked = () => {
+  if (pinModal.hidden) openPinModal();
+};
+
+window.lineupStudio = { store, stadium, pitch, bench: benchUI, sync };
+
+sync.start().then(() => {
+  if (!sync.status.enabled) return;
+  if (!sync.unlocked) {
+    setTimeout(() => toast('Shared board loaded - tap the Live badge to edit it', 'ok'), 900);
+  }
+});
 
 if (!store.activeTeam.players.length) {
   setTimeout(() => toast('Add your squad on the left, then drag players onto the pitch'), 500);

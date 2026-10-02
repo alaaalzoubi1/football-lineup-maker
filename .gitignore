@@ -12,3 +12,7 @@ npm-debug.log*
 !.vscode/extensions.json
 .env
 .env.*
+
+# Wrangler local dev state: contains local D1 databases, never commit
+worker/.wrangler/
+worker/node_modules/

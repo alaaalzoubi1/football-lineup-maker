@@ -13,7 +13,8 @@
 - GK is locked to the GK slot, players can't be dropped on an offside position
 - Optional player photo, compressed in the browser before storing
 - Automatic lineup filler that picks players by position
-- Lineup persists in `localStorage`
+- Lineup persists in `localStorage`, and on a shared board so everyone with the link sees the same XI
+- Shared board is view-only until a visitor enters the editor PIN
 - Export the lineup as a 1240×1660 poster PNG
 
 ## Run it locally
@@ -35,6 +36,52 @@ npm run preview  # serve the production build on http://localhost:4173/
 ```
 
 > The app needs WebGL. If WebGL is unavailable it shows a message instead of the pitch; adding players and exporting a poster still work.
+
+## The shared board
+
+Everyone who opens the site sees the same lineup. Reads are open to all; changing anything requires the editor PIN, which is checked by the backend — it is never sent anywhere except as a header to the Worker that verifies it.
+
+- The board is polled every 8 seconds while the tab is visible, so other people's edits appear without a refresh.
+- Edits are debounced and sent with the revision they were based on. If someone else saved in the meantime you are told rather than silently overwriting them.
+- The PIN is kept in `sessionStorage`, so it lasts for the tab and not beyond it.
+
+To run without a shared board (purely local, edits always allowed), put this in `.env.local`:
+
+```
+VITE_BOARD_ENDPOINT=off
+```
+
+Point it somewhere else to use a different backend:
+
+```
+VITE_BOARD_ENDPOINT=https://your-worker.workers.dev/board
+```
+
+### Backend
+
+The Worker in `worker/` is the only server-side piece. It stores one JSON document in Cloudflare D1 and serves it:
+
+| Route | Auth | Purpose |
+| --- | --- | --- |
+| `GET /board` | open | current board, its revision and timestamp |
+| `PUT /board` | `X-Board-Pin` | save the board, reports `conflict` if the base revision was stale |
+| `GET /verify` | `X-Board-Pin` | check the PIN without writing anything |
+| `GET /health` | open | liveness |
+
+The PIN is never stored. Only its SHA-256 digest lives in D1, so neither the repository nor the database contains a PIN that could be typed in.
+
+```bash
+cd worker
+wrangler login
+wrangler d1 create lineup-board          # paste the database_id into wrangler.toml
+wrangler d1 execute lineup-board --file=schema.sql
+node -e "console.log(require('crypto').createHash('sha256').update('YOUR-PIN').digest('hex'))" \
+  | xargs -I{} wrangler d1 execute lineup-board --remote \
+      --command "INSERT OR REPLACE INTO settings (key,value) VALUES ('pin_hash','{}')"
+wrangler deploy
+```
+
+Requests are only answered with a CORS header for origins listed in `origins` in `wrangler.toml`, writes are rate limited per IP, and payloads are capped at 400 KB.
 
 ## Deploy
 
@@ -63,6 +110,7 @@ src/
   main.js        app wiring: drag/drop handlers, toolbar, keyboard, debug hook
   data.js        pitch dimensions, positions, formations
   store.js       state, persistence, lineup rules (place/swap/autoFill)
+  sync.js        shared board: polling, debounced saves, PIN unlock, conflicts
   stadium.js     three.js scene, stands, crowd, camera auto-fit
   pitch.js       slot DOM projected from 3D anchors every frame
   drag.js        pointer-based drag controller (mouse + touch)
@@ -71,4 +119,8 @@ src/
   cards.js       shared card markup
   exportPng.js   poster export
   util.js        helpers and toasts
+worker/
+  src/index.js   board API: read, save, PIN check, CORS, rate limiting
+  schema.sql     D1 tables (board document + PIN digest)
+  wrangler.toml  worker name, allowed origins, D1 binding
 ```

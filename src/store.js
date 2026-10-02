@@ -79,17 +79,20 @@ function sanitizeTeam(raw, fallback) {
   return team;
 }
 
+export function hydrate(raw) {
+  if (!raw || !Array.isArray(raw.teams) || !raw.teams.length) return freshState();
+  const teams = TEAMS.map((def, i) => sanitizeTeam(raw.teams[i] ?? {}, def));
+  const extra = raw.teams.filter((t) => !TEAMS.some((d) => d.id === t?.id));
+  for (const t of extra) teams.push(sanitizeTeam(t, { id: uid('t'), name: 'Team', color: '#a78bfa' }));
+  const activeTeam = teams.some((t) => t.id === raw.activeTeam) ? raw.activeTeam : teams[0].id;
+  return { v: 1, activeTeam, teams };
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return freshState();
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.teams) || !parsed.teams.length) return freshState();
-    const teams = TEAMS.map((def, i) => sanitizeTeam(parsed.teams[i] ?? {}, def));
-    const extra = parsed.teams.filter((t) => !TEAMS.some((d) => d.id === t?.id));
-    for (const t of extra) teams.push(sanitizeTeam(t, { id: uid('t'), name: 'Team', color: '#a78bfa' }));
-    const activeTeam = teams.some((t) => t.id === parsed.activeTeam) ? parsed.activeTeam : teams[0].id;
-    return { v: 1, activeTeam, teams };
+    return hydrate(JSON.parse(raw));
   } catch {
     return freshState();
   }
@@ -100,9 +103,25 @@ export const store = {
   listeners: new Set(),
   saveFailed: false,
   persistTimer: null,
+  readOnly: false,
+  onBlocked: null,
 
   get activeTeam() {
     return this.state.teams.find((t) => t.id === this.state.activeTeam) ?? this.state.teams[0];
+  },
+
+  /** Swap in a whole state (used by shared-board sync) and repaint. */
+  replaceState(next) {
+    this.state = next ?? freshState();
+    this.persistNow();
+    this.emit();
+  },
+
+  setReadOnly(value) {
+    if (this.readOnly === Boolean(value)) return;
+    this.readOnly = Boolean(value);
+    document.body.classList.toggle('read-only', this.readOnly);
+    this.emit();
   },
 
   subscribe(fn) {
@@ -359,4 +378,40 @@ export const store = {
     this.state = freshState();
     this.commit();
   },
+};
+
+/** Content mutations are refused while the board is shared-and-locked. */
+const SHARED_MUTATORS = [
+  'addPlayer',
+  'updatePlayer',
+  'removePlayer',
+  'clearSquad',
+  'clearLineup',
+  'setFormation',
+  'setTeamColor',
+  'setTeamName',
+  'place',
+  'swap',
+  'dropPlayer',
+  'reset',
+];
+
+for (const name of SHARED_MUTATORS) {
+  const original = store[name];
+  store[name] = (...args) => {
+    if (store.readOnly) {
+      if (store.onBlocked) store.onBlocked(name);
+      return null;
+    }
+    return original.apply(store, args);
+  };
+}
+
+const autoFill = store.autoFill;
+store.autoFill = () => {
+  if (store.readOnly) {
+    if (store.onBlocked) store.onBlocked('autoFill');
+    return { filled: 0, assignments: [] };
+  }
+  return autoFill.apply(store, []);
 };
