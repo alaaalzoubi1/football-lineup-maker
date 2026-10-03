@@ -5,12 +5,15 @@ import { formationLabel, getLang, isRtl, positionLabel, t } from './i18n.js';
 
 const W = 1240;
 const H = 1660;
-const HEAD_H = 205;
+const HEAD_H = 220; // height of the tinted header band
 const SUBS_H = 250;
-const PITCH_H = H - HEAD_H - SUBS_H - 60;
+const PITCH_Y = HEAD_H + 22;
+const PITCH_H = H - PITCH_Y - SUBS_H - 60;
 const PITCH_W = PITCH_H / (PITCH.length / PITCH.width);
 const PITCH_X = (W - PITCH_W) / 2;
-const PITCH_Y = HEAD_H;
+/* Room kept above and below a player's centre so the avatar, the name tag and
+   the pitch border never collide (the keeper's tag used to sit on the line). */
+const PLAYER_PAD = 112;
 
 /* The poster mirrors the UI language: Arabic is drawn right-to-left and the
    header block swaps sides so nothing is clipped. */
@@ -44,6 +47,25 @@ async function getPhoto(player) {
   }
 }
 
+/* Draws one line of text no wider than maxW: shrinks the font down to a floor,
+   then truncates with an ellipsis. Alignment/direction come from the caller. */
+function fitText(ctx, text, x, y, maxW, size, weight) {
+  const family = '"Segoe UI", system-ui, sans-serif';
+  let px = size;
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `${weight} ${px}px ${family}`;
+  while (px > size * 0.72 && ctx.measureText(text).width > maxW) {
+    px -= 1;
+    ctx.font = `${weight} ${px}px ${family}`;
+  }
+  let out = text;
+  while (out.length > 1 && ctx.measureText(out).width > maxW) out = out.slice(0, -1);
+  if (out !== text) {
+    out = out.slice(0, -1) + '…';
+  }
+  ctx.fillText(out, x, y);
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   if (ctx.roundRect) {
@@ -62,6 +84,22 @@ function toPitch(x, z) {
   return {
     cx: PITCH_X + ((x + PITCH.halfWidth) / PITCH.width) * PITCH_W,
     cy: PITCH_Y + ((z + PITCH.halfLength) / PITCH.length) * PITCH_H,
+  };
+}
+
+/* Where a player is drawn. Same as toPitch, except that the vertical spread is
+   squeezed just enough to keep the outermost players clear of the pitch ends. */
+function playerScaleZ(slots) {
+  const maxZ = Math.max(1, ...slots.map((slot) => Math.abs(slot.z)));
+  const natural = PITCH_H / PITCH.length;
+  const roomy = (PITCH_H / 2 - PLAYER_PAD) / maxZ;
+  return Math.min(natural, roomy);
+}
+
+function toPlayer(x, z, kz) {
+  return {
+    cx: PITCH_X + ((x + PITCH.halfWidth) / PITCH.width) * PITCH_W,
+    cy: PITCH_Y + PITCH_H / 2 + z * kz,
   };
 }
 
@@ -84,36 +122,73 @@ function drawPitch(ctx, accent) {
   const sz = PITCH_H / PITCH.length;
   const L = PITCH.halfLength;
   const Wd = PITCH.halfWidth;
+  // metres -> canvas, measured from the pitch centre
+  const X = (m) => PITCH_X + PITCH_W / 2 + m * sx;
+  const Z = (m) => PITCH_Y + PITCH_H / 2 + m * sz;
+  const line = 'rgba(255,255,255,0.85)';
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.82)';
+  ctx.strokeStyle = line;
+  ctx.fillStyle = line;
   ctx.lineWidth = 3;
-  ctx.strokeRect(PITCH_X + Wd * sx, PITCH_Y + L * sz, PITCH_W - Wd * sx * 2, PITCH_H - L * sz * 2);
+  ctx.lineJoin = 'round';
 
-  ctx.beginPath();
-  ctx.moveTo(PITCH_X, PITCH_Y + PITCH_H / 2);
-  ctx.lineTo(PITCH_X + PITCH_W, PITCH_Y + PITCH_H / 2);
-  ctx.stroke();
+  // touchlines and goal lines, inset a little so the stroke is not clipped
+  const inset = 6;
+  ctx.strokeRect(PITCH_X + inset, PITCH_Y + inset, PITCH_W - inset * 2, PITCH_H - inset * 2);
 
-  const centre = toPitch(0, 0);
+  // halfway line + centre circle + centre spot
   ctx.beginPath();
-  ctx.ellipse(centre.cx, centre.cy, 9.15 * sx, 9.15 * sz, 0, 0, Math.PI * 2);
+  ctx.moveTo(PITCH_X + inset, Z(0));
+  ctx.lineTo(PITCH_X + PITCH_W - inset, Z(0));
   ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.beginPath();
-  ctx.arc(centre.cx, centre.cy, 5, 0, Math.PI * 2);
+  ctx.ellipse(X(0), Z(0), 9.15 * sx, 9.15 * sz, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(X(0), Z(0), 5, 0, Math.PI * 2);
   ctx.fill();
 
   for (const side of [-1, 1]) {
-    const goal = side * L;
-    const areaTop = goal - side * 16.5;
-    ctx.strokeRect(PITCH_X + (-20.16) * sx, PITCH_Y + Math.min(goal, areaTop) * sz, 40.32 * sx, 16.5 * sz);
-    const sixTop = side * (L - 5.5);
-    ctx.strokeRect(PITCH_X + (-9.16) * sx, PITCH_Y + Math.min(side * L, sixTop) * sz, 18.32 * sx, 5.5 * sz);
+    // side = -1 is the top end, +1 the bottom end. "toward" points at the goal.
+    const goalZ = side * L;
+    const rect = (halfW, depth) => {
+      const nearZ = goalZ;
+      const farZ = goalZ - side * depth;
+      const top = Math.min(nearZ, farZ);
+      ctx.strokeRect(X(-halfW), Z(top), halfW * 2 * sx, depth * sz);
+    };
+    // penalty area and six-yard box: drawn from the goal line, not the centre
+    rect(20.16, 16.5);
+    rect(9.16, 5.5);
 
-    const spot = toPitch(0, side * (L - 11));
+    // goal mouth, just outside the line so it reads as the goal
+    ctx.save();
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.arc(spot.cx, spot.cy, 5, 0, Math.PI * 2);
+    ctx.moveTo(X(-3.66), Z(goalZ));
+    ctx.lineTo(X(3.66), Z(goalZ));
+    ctx.stroke();
+    ctx.restore();
+
+    // penalty spot and the arc of the "D" that sits outside the area
+    const spotZ = goalZ - side * 11;
+    ctx.beginPath();
+    ctx.arc(X(0), Z(spotZ), 4.5, 0, Math.PI * 2);
     ctx.fill();
+    const theta = Math.acos((16.5 - 11) / 9.15);
+    const facing = side < 0 ? Math.PI / 2 : -Math.PI / 2; // towards the centre circle
+    ctx.beginPath();
+    ctx.ellipse(X(0), Z(spotZ), 9.15 * sx, 9.15 * sz, 0, facing - theta, facing + theta);
+    ctx.stroke();
+
+    // corner arcs
+    for (const cornerSide of [-1, 1]) {
+      const start = cornerSide < 0 ? (side < 0 ? 0 : -Math.PI / 2) : side < 0 ? Math.PI / 2 : Math.PI;
+      const end = start + Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(X(cornerSide * Wd), Z(goalZ), 1.2 * sx * 1.6, start, end);
+      ctx.stroke();
+    }
   }
 
   ctx.strokeStyle = 'rgba(255,255,255,0.34)';
@@ -221,20 +296,28 @@ async function drawPlayer(ctx, player, team, cx, cy, radius, showName = true) {
 export async function renderLineupPoster() {
   const team = store.activeTeam;
   const formation = getFormation(team.formation);
+  const subs = store.substitutes();
+  const CARD_W = 300;
+  const CARD_H = 110;
+  const CARD_GAP = 16;
+  const perRow = Math.max(1, Math.floor((W - 112 + CARD_GAP) / (CARD_W + CARD_GAP)));
+  const subRows = Math.max(1, Math.ceil(subs.length / perRow));
+  const totalH = H + (subRows - 1) * (CARD_H + 14);
+
   const canvas = document.createElement('canvas');
   canvas.width = W;
-  canvas.height = H;
+  canvas.height = totalH;
   const ctx = canvas.getContext('2d');
 
-  const bg = ctx.createLinearGradient(0, 0, W, H);
+  const bg = ctx.createLinearGradient(0, 0, W, totalH);
   bg.addColorStop(0, '#0b1116');
   bg.addColorStop(1, '#05080b');
   ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, W, totalH);
 
   ctx.fillStyle = team.color;
   ctx.globalAlpha = 0.14;
-  ctx.fillRect(0, 0, W, 220);
+  ctx.fillRect(0, 0, W, HEAD_H);
   ctx.globalAlpha = 1;
   ctx.fillStyle = team.color;
   ctx.fillRect(0, 0, W, 8);
@@ -247,12 +330,12 @@ export async function renderLineupPoster() {
 
   ctx.font = '600 26px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = '#9fb2bd';
-  ctx.fillText(t('poster.subtitle', { formation: formationLabel(team.formation) }), edgeOf('start'), 140);
+  ctx.fillText(t('poster.subtitle', { formation: `\u2066${formationLabel(formation)}\u2069` }), edgeOf('start'), 140);
 
   setAlign(ctx, 'end');
   ctx.font = '800 30px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = team.color;
-  ctx.fillText(formationLabel(team.formation), edgeOf('end'), 96);
+  ctx.fillText(formationLabel(formation), edgeOf('end'), 96);
   ctx.font = '600 20px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = '#7f939e';
   ctx.fillText(
@@ -268,11 +351,12 @@ export async function renderLineupPoster() {
   drawPitch(ctx, team.color);
 
   const ordered = [...formation.slots].sort((a, b) => b.z - a.z);
+  const kz = playerScaleZ(formation.slots);
   const radius = 52;
   for (const slot of ordered) {
     const player = store.playerById(team.lineup[slot.id]);
     if (!player) continue;
-    const { cx, cy } = toPitch(slot.x, slot.z);
+    const { cx, cy } = toPlayer(slot.x, slot.z, kz);
     await drawPlayer(ctx, player, team, cx, cy, radius);
   }
 
@@ -280,7 +364,7 @@ export async function renderLineupPoster() {
   if (missing > 0) {
     for (const slot of ordered) {
       if (team.lineup[slot.id]) continue;
-      const { cx, cy } = toPitch(slot.x, slot.z);
+      const { cx, cy } = toPlayer(slot.x, slot.z, kz);
       ctx.save();
       ctx.setLineDash([7, 7]);
       ctx.beginPath();
@@ -297,10 +381,10 @@ export async function renderLineupPoster() {
     }
   }
 
-  const subs = store.substitutes();
   const subsTop = PITCH_Y + PITCH_H + 34;
 
   setAlign(ctx, 'start');
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#7f939e';
   ctx.font = '700 18px "Segoe UI", system-ui, sans-serif';
   ctx.fillText(t('poster.subsTitle', { count: subs.length }), edgeOf('start'), subsTop + 16);
@@ -312,43 +396,42 @@ export async function renderLineupPoster() {
     ctx.font = '600 22px "Segoe UI", system-ui, sans-serif';
     ctx.fillText(t('poster.subsEmpty'), edgeOf('start'), subsTop + 76);
   } else {
-    const cardW = 168;
-    const cardH = 118;
-    const perRow = Math.floor((W - 112 + 16) / (cardW + 16));
-    const shown = Math.min(subs.length, perRow);
-    const startX = 56 + Math.max(0, (W - 112 - (shown * cardW + Math.max(0, shown - 1) * 16)) / 2);
-
+    const rtl = isRtl();
     for (let i = 0; i < subs.length; i += 1) {
       const player = subs[i];
       const row = Math.floor(i / perRow);
+      const inRow = Math.min(perRow, subs.length - row * perRow);
       const col = i % perRow;
-      const x = startX + col * (cardW + 16);
-      const y = subsTop + 46 + row * (cardH + 14);
+      // each row is centred on its own, so a short last row is not left-heavy
+      const rowW = inRow * CARD_W + (inRow - 1) * CARD_GAP;
+      const rowStart = (W - rowW) / 2;
+      const slotIdx = rtl ? inRow - 1 - col : col;
+      const x = rowStart + slotIdx * (CARD_W + CARD_GAP);
+      const y = subsTop + 46 + row * (CARD_H + 14);
 
       ctx.fillStyle = 'rgba(255,255,255,0.045)';
       ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.lineWidth = 2;
-      roundRect(ctx, x, y, cardW, cardH, 12);
+      roundRect(ctx, x, y, CARD_W, CARD_H, 14);
       ctx.fill();
       ctx.stroke();
 
+      // team-colour accent on the side the avatar is on
       ctx.fillStyle = team.color;
-      ctx.fillRect(isRtl() ? x + cardW - 16 : x, y + 12, 4, cardH - 24);
+      ctx.fillRect(rtl ? x + CARD_W - 4 : x, y + 14, 4, CARD_H - 28);
 
+      const avatarX = rtl ? x + CARD_W - 56 : x + 56;
+      await drawPlayer(ctx, player, team, avatarX, y + CARD_H / 2, 34, false);
+
+      // text sits beside the avatar and is shrunk/truncated to the room left
+      const textEdge = rtl ? avatarX - 52 : avatarX + 52;
+      const room = CARD_W - 56 - 52 - 16;
       setAlign(ctx, 'start');
-      const padStart = isRtl() ? x + 20 : x + 92;
       ctx.fillStyle = '#eef5f8';
-      ctx.font = '700 24px "Segoe UI", system-ui, sans-serif';
-      const label = player.name.length > 12 ? `${player.name.slice(0, 11)}…` : player.name;
-      ctx.fillText(label, padStart, y + 50);
+      fitText(ctx, player.name, textEdge, y + CARD_H / 2 - 6, room, 26, 700);
       ctx.fillStyle = '#8fa3ae';
-      ctx.font = '600 19px "Segoe UI", system-ui, sans-serif';
-      ctx.fillText(
-        t('poster.subsMeta', { position: positionLabel(player.position), number: player.number }),
-        padStart,
-        y + 78);
-
-      await drawPlayer(ctx, player, team, isRtl() ? x + cardW - 48 : x + 48, y + cardH / 2, 32, false);
+      const meta = positionLabel(player.position);
+      fitText(ctx, meta, textEdge, y + CARD_H / 2 + 24, room, 19, 600);
     }
   }
 
@@ -356,7 +439,7 @@ export async function renderLineupPoster() {
   ctx.direction = isRtl() ? 'rtl' : 'ltr';
   ctx.fillStyle = 'rgba(159,178,189,0.5)';
   ctx.font = '600 18px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText(t('poster.footer', { gk: positionLabel('GK') }), W / 2, H - 34);
+  ctx.fillText(t('poster.footer', { gk: positionLabel('GK') }), W / 2, totalH - 34);
 
   return canvas;
 }

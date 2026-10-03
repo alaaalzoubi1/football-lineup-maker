@@ -525,6 +525,10 @@ body.read-only .slot.empty .slot-empty { border-style: dotted; }
   white-space: nowrap;
 }
 .slot.filled .slot-mark { opacity: 0; }
+/* Compact mode (set from pitch.js when the play area is too small for readable
+   name tags): avatars only, drawn bigger, names stay in the squad list. */
+.overlay.compact .card-name,
+.overlay.compact .slot-mark { display: none; }
 
 .slot.drop-target .slot-empty { border-color: var(--accent); border-style: solid; color: var(--accent); transform: scale(1.12); box-shadow: 0 0 0 6px rgba(182, 255, 60, 0.16); }
 .slot.swap-target .card { transform: scale(1.06); box-shadow: 0 0 0 2px var(--accent), 0 0 26px rgba(182, 255, 60, 0.5); }
@@ -551,7 +555,9 @@ body.read-only .slot.empty .slot-empty { border-style: dotted; }
   border-radius: 99px;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* Not overflow: hidden. That clipped the number badge into an unreadable
+     sliver; the photo is rounded on its own instead (see the img rule). */
+  overflow: visible;
   background: linear-gradient(165deg, var(--team, #46596a), #131c22);
   border: 2.5px solid var(--team, #46596a);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(6, 12, 16, 0.45);
@@ -560,12 +566,13 @@ body.read-only .slot.empty .slot-empty { border-style: dotted; }
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
-.card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 99px; }
 .card-number {
   position: absolute;
-  right: -7px; bottom: -5px;
+  right: -8px; bottom: -6px;
   min-width: 22px;
   height: 22px;
+  z-index: 2;
   padding: 0 5px;
   display: grid;
   place-items: center;
@@ -748,7 +755,7 @@ body.is-dragging .card { cursor: grabbing; }
 /* ---------------------------- responsive ---------------------------- */
 
 @media (max-width: 900px) {
-  :root { --sidebar-w: 300px; --sheet-h: min(55dvh, 460px); }
+  :root { --sidebar-w: 300px; --sheet-h: min(46dvh, 400px); }
 
   /*
    * The sidebar becomes a bottom sheet drawn over a strip that .app reserves
@@ -783,6 +790,10 @@ body.is-dragging .card { cursor: grabbing; }
     padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
+  /* Closing the sheet hands its strip back to the stage; stadium.js refits the
+     camera when the play area changes size, so the pitch simply grows. */
+  .app.sidebar-hidden { padding-bottom: 0; }
+
   .app.sidebar-hidden .sidebar {
     margin-left: 0;
     transform: translateY(101%);
@@ -810,6 +821,7 @@ body.is-dragging .card { cursor: grabbing; }
   }
 
   .sheet-tabs { display: flex; }
+  .sidebar[data-sheet='squad'] .team-panel { display: none; }
 
   /* The squad panel no longer scrolls as a whole: its header stays put and only
      the list scrolls, so the rows get everything the chrome above doesn't use. */
@@ -915,7 +927,7 @@ body.is-dragging .card { cursor: grabbing; }
   /* A fixed height: the bench's height feeds the play area, so letting it
      change with its contents made the pitch reflow under the player's finger
      every time the lineup was cleared or auto-filled. */
-  .bench { display: flex; flex-direction: column; height: 116px; }
+  .bench { display: flex; flex-direction: column; height: 100px; }
   .bench-head { flex: 0 0 auto; }
   .bench-track { flex: 1 1 auto; min-height: 0; }
   .bench:not(.has-subs) .bench-track { display: none; }
@@ -923,7 +935,8 @@ body.is-dragging .card { cursor: grabbing; }
   .bench-head { padding: 0 2px 6px; }
   .bench-sub { display: none; }
   .bench-slot-card { padding: 5px 6px 6px; gap: 3px; }
-  .bench-slot-card .card-avatar { width: 36px; height: 36px; font-size: 11px; }
+  .bench-slot-card .card-avatar { width: 32px; height: 32px; font-size: 10px; }
+  .bench-slot-card .card-number { min-width: 16px; height: 16px; padding: 0 3px; font-size: 9px; right: -7px; bottom: -5px; border-width: 1.5px; }
   .bench-slot-card .card-name { max-width: 74px; font-size: 9.5px; padding: 0 4px; }
   .bench-slot-card .sub-pos { font-size: 8px; padding: 0 3px; }
   .toolbar { top: 8px; left: 8px; }

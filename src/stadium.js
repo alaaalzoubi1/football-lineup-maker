@@ -185,7 +185,15 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
   controls.maxPolarAngle = 1.38;
   controls.update();
 
-  const homeDirection = new THREE.Vector3(0, 118, 120).normalize();
+  /* A phone is a tall, narrow window and the pitch is a tall, narrow rectangle,
+     so a steeper, nearly top-down camera uses the screen far better than the
+     tilted broadcast angle (which squashes the far half and shrinks every card).
+     The same direction is used on first load and by the reset button. */
+  const isPhone = () => window.matchMedia('(max-width: 900px)').matches;
+  const homeFor = () => (isPhone() ? new THREE.Vector3(0, 170, 52) : new THREE.Vector3(0, 118, 120)).normalize();
+  const homeDirection = homeFor();
+  camera.position.copy(controls.target).addScaledVector(homeDirection, 168);
+  controls.update();
   const fitPoints = [];
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
@@ -708,6 +716,7 @@ export function createStadium({ canvas, stage, safeTop = () => 72, safeBottom = 
 
   function resetView() {
     controls.target.set(0, 0, 0);
+    homeDirection.copy(homeFor());
     camera.position.copy(controls.target).addScaledVector(homeDirection, 170);
     fitCamera();
   }
